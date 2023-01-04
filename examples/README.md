@@ -2,11 +2,7 @@
 
 This folder contains advanced and complete applications implemented with the gRPC Python Client Library.
 
-## Example Code
-
-This section describes the example's code by highlighting what IOTICS features each example includes.
-
-### Publisher Connector
+## Publisher Connector
 
 It creates a Twin Model of a Temperature Sensor along with 3 Temperature Sensor Twins based on the aforementioned Model. The Temperature Sensor Twins in turn generate and share via a Feed a random temperature between 10C and 30C.
 
@@ -14,7 +10,7 @@ It can be executed in combination with:
 
 -   Synthesiser Connector (coming soon)
 
-#### Features
+__Features__
 
 -   Use of the High Level Identity Library;
 -   Use of the gRPC Python Client Library;

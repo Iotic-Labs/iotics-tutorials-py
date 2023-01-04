@@ -35,6 +35,6 @@ To run the code in this repository you first need to:
     -   `HOST` - Domain name of the IOTICSpace with which to communicate
     -   `USER_KEY_NAME` - Key Name of the User Identity
     -   `USER_SEED` - Seed of the User Identity
-    -   `AGENT_KEY_NAME` = Key Name of the Agent Identity
+    -   `AGENT_KEY_NAME` - Key Name of the Agent Identity
     -   `AGENT_SEED` - Seed of the Agent Identity
     -   `TOKEN_DURATION` -  How long in seconds the auth tokens will last (30 seconds if not specified)
