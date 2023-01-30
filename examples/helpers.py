@@ -15,8 +15,8 @@ PROPERTY_KEY_COLOR = "https://data.iotics.com/app#color"
 PROPERTY_KEY_SPACE_NAME = "https://data.iotics.com/app#spaceName"
 PROPERTY_KEY_CREATED_BY = "https://data.iotics.com/app#createdBy"
 
-PROPERTY_VALUE_ALLOW_ALL_HOSTS = "http://data.iotics.com/public#allHosts"
-PROPERTY_VALUE_ALLOW_NO_HOSTS = "http://data.iotics.com/public#noHost"
+PROPERTY_VALUE_ALLOW_ALL = "http://data.iotics.com/public#all"
+PROPERTY_VALUE_ALLOW_NONE = "http://data.iotics.com/public#none"
 PROPERTY_VALUE_MODEL = "https://data.iotics.com/app#Model"
 
 UNIT_DEGREE_CELSIUS = "http://qudt.org/vocab/unit/DEG_C"
