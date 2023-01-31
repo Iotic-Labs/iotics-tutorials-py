@@ -14,7 +14,7 @@ from helpers import (
     PROPERTY_KEY_LABEL,
     PROPERTY_KEY_SPACE_NAME,
     PROPERTY_KEY_TYPE,
-    PROPERTY_VALUE_ALLOW_ALL_HOSTS,
+    PROPERTY_VALUE_ALLOW_ALL,
     PROPERTY_VALUE_MODEL,
     UNIT_DEGREE_CELSIUS,
     auto_refresh_token,
@@ -143,12 +143,12 @@ def main():
                 ),
                 create_property(
                     key=PROPERTY_KEY_HOST_METADATA_ALLOW_LIST,
-                    value=PROPERTY_VALUE_ALLOW_ALL_HOSTS,
+                    value=PROPERTY_VALUE_ALLOW_ALL,
                     is_uri=True,
                 ),
                 create_property(
                     key=PROPERTY_KEY_HOST_ALLOW_LIST,
-                    value=PROPERTY_VALUE_ALLOW_ALL_HOSTS,
+                    value=PROPERTY_VALUE_ALLOW_ALL,
                     is_uri=True,
                 ),
                 create_property(
