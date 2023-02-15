@@ -3,8 +3,9 @@ import random
 import sys
 import threading
 from time import sleep
+from typing import List
 
-from helpers import (
+from helpers.constants import (
     PROPERTY_KEY_COLOR,
     PROPERTY_KEY_COMMENT,
     PROPERTY_KEY_CREATED_BY,
@@ -17,9 +18,10 @@ from helpers import (
     PROPERTY_VALUE_ALLOW_ALL,
     PROPERTY_VALUE_MODEL,
     UNIT_DEGREE_CELSIUS,
-    auto_refresh_token,
 )
-from identity import Identity
+from helpers.identity import Identity
+from helpers.utilities import auto_refresh_token_grpc, get_host_endpoints
+from iotics.api.common_pb2 import GeoLocation, Property
 from iotics.lib.grpc.helpers import (
     create_feed_with_meta,
     create_location,
@@ -28,6 +30,12 @@ from iotics.lib.grpc.helpers import (
 )
 from iotics.lib.grpc.iotics_api import IoticsApi as IOTICSviagRPC
 
+HOST_URL = ""
+USER_KEY_NAME = ""
+USER_SEED = ""
+AGENT_KEY_NAME = ""
+AGENT_SEED = ""
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -35,25 +43,74 @@ logging.basicConfig(
 )
 
 
+class PublisherConnectorGrpc:
+    def __init__(self):
+        self._identity: Identity = None
+        self._host_id: str = None
+        self._iotics_api: IOTICSviagRPC = None
+
+        self._setup()
+
+    def _setup(self):
+        endpoints = get_host_endpoints(host_url=HOST_URL)
+        self._identity = Identity(
+            resolver_url=endpoints["resolver"],
+            grpc_endpoint=endpoints["grpc"],
+            user_key_name=USER_KEY_NAME,
+            user_seed=USER_SEED,
+            agent_key_name=AGENT_KEY_NAME,
+            agent_seed=AGENT_SEED,
+        )
+        self._iotics_api = IOTICSviagRPC(auth=self._identity)
+
+        threading.Thread(
+            target=auto_refresh_token_grpc,
+            args=(
+                self._identity,
+                self._iotics_api,
+            ),
+            daemon=True,
+        ).start()
+
+    def create_new_twin(
+        self,
+        twin_key_name: str,
+        properties: List[Property],
+        feeds: List[dict] = None,
+        location: GeoLocation = None,
+    ) -> str:
+        twin_identity = self._identity.create_twin_with_control_delegation(
+            twin_key_name=twin_key_name
+        )
+
+        twin_did = twin_identity.did
+
+        resp = self._iotics_api.upsert_twin(
+            twin_did=twin_did, location=location, properties=properties, feeds=feeds
+        )
+        if resp:
+            logging.info("Twin %s upserted", twin_did)
+
+        return twin_did
+
+    def share_random_data(self, twin_from_model_did_list: List[str]):
+        for twin_from_model_did in twin_from_model_did_list:
+            data_to_share = {"reading": random.randint(10, 31)}
+            self._iotics_api.share_feed_data(
+                twin_did=twin_from_model_did,
+                feed_id="temperature",
+                data=data_to_share,
+            )
+
+            logging.info("Shared %s from Twin %s", data_to_share, twin_from_model_did)
+
+
 def main():
-    identity = Identity()
-    iotics_api = IOTICSviagRPC(auth=identity)
+    publisher = PublisherConnectorGrpc()
 
-    threading.Thread(
-        target=auto_refresh_token,
-        args=(
-            identity,
-            iotics_api,
-        ),
-        daemon=True,
-    ).start()
-
-    publisher_model_twin_identity = identity.create_twin_with_control_delegation(
-        twin_key_name="SensorTwinModel"
-    )
-    publisher_model_twin_did = publisher_model_twin_identity.did
-    iotics_api.upsert_twin(
-        twin_did=publisher_model_twin_did,
+    # Create Twin Model
+    twin_model_did = publisher.create_new_twin(
+        twin_key_name="SensorTwinModel",
         properties=[
             create_property(
                 key=PROPERTY_KEY_TYPE, value=PROPERTY_VALUE_MODEL, is_uri=True
@@ -93,7 +150,7 @@ def main():
                     ),
                     create_property(
                         key=PROPERTY_KEY_COMMENT,
-                        value="Current Temperature of a room",
+                        value="Random Temperature",
                         language="en",
                     ),
                 ],
@@ -109,29 +166,25 @@ def main():
         ],
     )
 
-    room_number_to_twin_did = {}
-    for room_number in range(3):
-        publisher_twin_identity = identity.create_twin_with_control_delegation(
-            twin_key_name=f"SensorTwin{room_number}"
-        )
-        publisher_twin_did = publisher_twin_identity.did
-
-        iotics_api.upsert_twin(
-            twin_did=publisher_twin_did,
+    # Create 3 Twins from Model
+    twin_from_model_did_list = []
+    for temp_sensor in range(3):
+        twin_from_model_did = publisher.create_new_twin(
+            twin_key_name=f"SensorTwin{temp_sensor}",
             properties=[
                 create_property(
                     key=PROPERTY_KEY_FROM_MODEL,
-                    value=publisher_model_twin_did,
+                    value=twin_model_did,
                     is_uri=True,
                 ),
                 create_property(
                     key=PROPERTY_KEY_LABEL,
-                    value=f"Temperature Sensor Twin {room_number+1}",
+                    value=f"Temperature Sensor Twin {temp_sensor+1}",
                     language="en",
                 ),
                 create_property(
                     key=PROPERTY_KEY_COMMENT,
-                    value=f"Temperature Sensor Twin of Room {room_number+1}",
+                    value=f"Temperature Sensor Twin {temp_sensor+1} that shares random temperature data",
                     language="en",
                 ),
                 create_property(
@@ -142,6 +195,14 @@ def main():
                     key=PROPERTY_KEY_CREATED_BY, value="Replace with your Name"
                 ),
                 create_property(
+                    key="https://data.iotics.com/app#defines",
+                    value="https://saref.etsi.org/core/TemperatureSensor",
+                    is_uri=True,
+                ),
+                create_property(
+                    key="https://saref.etsi.org/core/hasModel", value="T1234"
+                ),
+                create_property(
                     key=PROPERTY_KEY_HOST_METADATA_ALLOW_LIST,
                     value=PROPERTY_VALUE_ALLOW_ALL,
                     is_uri=True,
@@ -150,14 +211,6 @@ def main():
                     key=PROPERTY_KEY_HOST_ALLOW_LIST,
                     value=PROPERTY_VALUE_ALLOW_ALL,
                     is_uri=True,
-                ),
-                create_property(
-                    key="https://data.iotics.com/app#defines",
-                    value="https://saref.etsi.org/core/TemperatureSensor",
-                    is_uri=True,
-                ),
-                create_property(
-                    key="https://saref.etsi.org/core/hasModel", value="T1234"
                 ),
             ],
             feeds=[
@@ -171,7 +224,7 @@ def main():
                         ),
                         create_property(
                             key=PROPERTY_KEY_COMMENT,
-                            value="Current Temperature of a room",
+                            value="Random Temperature",
                             language="en",
                         ),
                     ],
@@ -188,21 +241,12 @@ def main():
             location=create_location(lat=51.5, lon=-0.1),
         )
 
-        room_number_to_twin_did.update({room_number: publisher_twin_did})
+        twin_from_model_did_list.append(twin_from_model_did)
 
     try:
         while True:
-            rand_temp_list = random.sample(range(10, 31), len(room_number_to_twin_did))
-            for room_number, rand_temp in enumerate(rand_temp_list):
-                iotics_api.share_feed_data(
-                    twin_did=room_number_to_twin_did[room_number],
-                    feed_id="temperature",
-                    data={"reading": rand_temp},
-                )
-                logging.info(
-                    f"Shared temperature {rand_temp} from Twin {room_number_to_twin_did[room_number]}"
-                )
-
+            # Share random temperature using the Twins from Model
+            publisher.share_random_data(twin_from_model_did_list)
             sleep(3)
     except KeyboardInterrupt:
         pass

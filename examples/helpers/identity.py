@@ -1,11 +1,8 @@
 import logging
-import os
 import sys
 from datetime import datetime, timedelta
 from time import time
 
-import dotenv
-import requests
 from iotics.lib.grpc.auth import AuthInterface
 from iotics.lib.identity.api.high_level_api import (
     HighLevelIdentityApi,
@@ -13,39 +10,45 @@ from iotics.lib.identity.api.high_level_api import (
     get_rest_high_level_identity_api,
 )
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[logging.StreamHandler(stream=sys.stdout)],
-)
-
-dotenv.load_dotenv()
-HOST = os.environ["HOST"]
-USER_KEY_NAME = os.environ["USER_KEY_NAME"]
-USER_SEED = bytes.fromhex(os.environ["USER_SEED"])
-AGENT_KEY_NAME = os.environ["AGENT_KEY_NAME"]
-AGENT_SEED = bytes.fromhex(os.environ["AGENT_SEED"])
-TOKEN_DURATION = int(os.getenv("TOKEN_DURATION", 30))
-
 
 class Identity(AuthInterface):
-    def __init__(self):
+    def __init__(
+        self,
+        resolver_url: str,
+        grpc_endpoint: str,
+        user_key_name: str,
+        user_seed: str,
+        agent_key_name: str,
+        agent_seed: str,
+        token_duration: int = 30,
+    ):
+        self._grpc_endpoint: str = grpc_endpoint
+        self._user_key_name: str = user_key_name
+        self._user_seed: bytes = bytes.fromhex(user_seed)
+        self._agent_key_name: str = agent_key_name
+        self._agent_seed: bytes = bytes.fromhex(agent_seed)
+        self._token_duration: int = token_duration
+
         self._high_level_identity_api: HighLevelIdentityApi = None
         self._user_identity: RegisteredIdentity = None
         self._agent_identity: RegisteredIdentity = None
-        self._host_url: str = None
-        self._token_duration: int = None
         self._token: str = None
         self._token_last_updated: float = None
-        self._setup()
 
-    def _setup(self):
-        host_url = HOST
-        split_url = host_url.partition("://")
-        space = split_url[2] or split_url[0]
-        self._host_url = space + ":10001"
-        index_json = f"{host_url}/index.json"
-        resolver_url = requests.get(index_json).json()["resolver"]
+        self._setup(resolver_url=resolver_url)
+
+    @staticmethod
+    def _check_global_var(var, var_name):
+        if not var:
+            logging.error("Parameter %s not set", var_name)
+            sys.exit(1)
+
+    def _setup(self, resolver_url: str):
+        self._check_global_var(var=self._user_key_name, var_name="USER_KEY_NAME")
+        self._check_global_var(var=self._user_seed, var_name="USER_SEED")
+        self._check_global_var(var=self._agent_key_name, var_name="AGENT_KEY_NAME")
+        self._check_global_var(var=self._agent_seed, var_name="AGENT_SEED")
+
         self._high_level_identity_api = get_rest_high_level_identity_api(
             resolver_url=resolver_url
         )
@@ -53,12 +56,12 @@ class Identity(AuthInterface):
             self._user_identity,
             self._agent_identity,
         ) = self._high_level_identity_api.create_user_and_agent_with_auth_delegation(
-            user_seed=USER_SEED,
-            user_key_name=USER_KEY_NAME,
-            agent_seed=AGENT_SEED,
-            agent_key_name=AGENT_KEY_NAME,
+            user_seed=self._user_seed,
+            user_key_name=self._user_key_name,
+            agent_seed=self._agent_seed,
+            agent_key_name=self._agent_key_name,
         )
-        self._token_duration = TOKEN_DURATION
+
         self.refresh_token()
 
     @property
@@ -78,7 +81,7 @@ class Identity(AuthInterface):
         return self._token_duration
 
     def get_host(self) -> str:
-        return self._host_url
+        return self._grpc_endpoint
 
     def get_token(self) -> str:
         return self._token
@@ -89,18 +92,20 @@ class Identity(AuthInterface):
             user_did=self._user_identity.did,
             duration=self._token_duration,
         )
+        self._token_last_updated = time()
 
         logging.debug(
-            f"New token generated. Expires at {datetime.now() + timedelta(seconds=self._token_duration)}"
+            "New token generated. Expires at %s",
+            datetime.now() + timedelta(seconds=self._token_duration),
         )
-
-        self._token_last_updated = time()
 
     def create_twin_with_control_delegation(
         self, twin_key_name: str, twin_seed: str = None
     ) -> RegisteredIdentity:
         if not twin_seed:
-            twin_seed = AGENT_SEED
+            twin_seed = self._agent_seed
+        else:
+            twin_seed = bytes.fromhex(twin_seed)
 
         twin_identity = (
             self._high_level_identity_api.create_twin_with_control_delegation(
@@ -110,8 +115,8 @@ class Identity(AuthInterface):
             )
         )
 
-        logging.info(
-            f"Twin Identity {twin_identity.did} created with Control delegation"
+        logging.debug(
+            "Twin Identity %s created with Control delegation", twin_identity.did
         )
 
         return twin_identity
