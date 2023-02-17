@@ -1,6 +1,5 @@
 setuptools
 wheel
-python-dotenv
 iotics-identity
 iotic.web.stomp-1.0.6.tar.gz
 iotics-grpc-client >= 2.0.3
