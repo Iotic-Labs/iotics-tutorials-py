@@ -10,12 +10,12 @@ logging.getLogger("stomp.py").setLevel(level=logging.WARNING)
 
 class StompClient:
     def __init__(self, stomp_endpoint: str, callback: Callable, token: str):
-        self._stomp_endpoint = stomp_endpoint
-        self._callback = callback
-        self._token = token
-        self._headers = {}
-        self._stomp_connection = None
-        self._subscriptions = {}
+        self._stomp_endpoint: str = stomp_endpoint
+        self._callback: Callable = callback
+        self._token: str = token
+        self._headers: dict = {}
+        self._stomp_connection: StompWSConnection12 = None
+        self._subscriptions: dict = {}
 
         self.setup()
 
@@ -54,10 +54,10 @@ class StompClient:
 
 
 class StompListener(stomp.ConnectionListener):
-    def __init__(self, disconnect_handler, callback):
-        self._disconnect_handler = disconnect_handler
-        self._callback = callback
-        self._reconnection_attempt = False
+    def __init__(self, disconnect_handler: Callable, callback: Callable):
+        self._disconnect_handler: Callable = disconnect_handler
+        self._callback: Callable = callback
+        self._reconnection_attempt: bool = False
 
     def on_error(self, headers, body):
         error_msg = json.loads(body)

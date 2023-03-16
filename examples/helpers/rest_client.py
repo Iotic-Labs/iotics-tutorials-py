@@ -3,15 +3,15 @@ import json
 import logging
 import sys
 from datetime import datetime, timedelta, timezone
-from typing import List
+from typing import List, Optional
 
 from helpers.constants import GET_HOST_ID, SHARE_DATA, UPSERT_TWIN
-from requests import request
+from requests import Response, request
 
 
 class RestClient:
     def __init__(self, token: str, host_url: str):
-        self._token = token
+        self._token: str = token
         self._host_url: str = host_url
         self._headers: dict = {}
 
@@ -27,12 +27,15 @@ class RestClient:
 
     @staticmethod
     def _make_api_call(
-        method: str, endpoint: str, headers: dict = None, payload: dict = None
+        method: str,
+        endpoint: str,
+        headers: Optional[dict] = None,
+        payload: Optional[dict] = None,
     ) -> dict:
-        response = None
+        response: dict = {}
 
         try:
-            req_resp = request(
+            req_resp: Response = request(
                 method=method, url=endpoint, headers=headers, json=payload
             )
             req_resp.raise_for_status()
@@ -47,7 +50,7 @@ class RestClient:
         self._headers["Authorization"] = f"Bearer {token}"
 
     def get_host_id(self):
-        host_id_resp = self._make_api_call(
+        host_id_resp: dict = self._make_api_call(
             method=GET_HOST_ID.method,
             headers=self._headers,
             endpoint=GET_HOST_ID.url.format(host=self._host_url),
@@ -59,12 +62,12 @@ class RestClient:
         self,
         twin_did: str,
         host_id: str,
-        properties: List[dict] = None,
-        feeds: List[dict] = None,
-        inputs: list[dict] = None,
-        location: dict = None,
+        properties: Optional[List[dict]] = None,
+        feeds: Optional[List[dict]] = None,
+        inputs: Optional[List[dict]] = None,
+        location: Optional[dict] = None,
     ):
-        payload = {"twinId": {"hostId": host_id, "id": twin_did}}
+        payload: dict = {"twinId": {"hostId": host_id, "id": twin_did}}
 
         if location:
             payload["location"] = location
@@ -87,8 +90,10 @@ class RestClient:
     def share_data(
         self, publisher_twin_did: str, host_id: str, feed_id: str, data_to_share: dict
     ):
-        encoded_data = base64.b64encode(json.dumps(data_to_share).encode()).decode()
-        data_to_share_payload = {
+        encoded_data: str = base64.b64encode(
+            json.dumps(data_to_share).encode()
+        ).decode()
+        data_to_share_payload: dict = {
             "sample": {"data": encoded_data, "mime": "application/json"}
         }
 
@@ -108,27 +113,27 @@ class RestClient:
 
     def search_twins(
         self,
-        text: str = None,
-        location: dict = None,
-        properties: List[dict] = None,
-        scope: str = "LOCAL",
-        response_type: str = "FULL",
-        timeout: int = 5,
+        text: Optional[str] = None,
+        location: Optional[dict] = None,
+        properties: Optional[List[dict]] = None,
+        scope: Optional[str] = "LOCAL",
+        response_type: Optional[str] = "FULL",
+        timeout: Optional[int] = 5,
     ) -> list[dict]:
         twins_list = []
 
-        search_headers = self._headers.copy()
+        search_headers: dict = self._headers.copy()
         # Search headers require a new header "Iotics-RequestTimeout".
         # The latter is used to stop the request once the timeout is reached
         search_headers.update(
             {
                 "Iotics-RequestTimeout": (
-                    datetime.now(tz=timezone.utc) + timedelta(seconds=timeout)
+                    datetime.now(tz=timezone.utc) + timedelta(seconds=float(timeout))
                 ).isoformat(),
             }
         )
 
-        payload = {"responseType": response_type, "filter": {}}
+        payload: dict = {"responseType": response_type, "filter": {}}
 
         if text:
             payload["filter"]["text"] = text

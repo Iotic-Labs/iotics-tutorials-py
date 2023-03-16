@@ -32,7 +32,7 @@ Alternatively you can follow the manual steps below:
 4.  Install the required dependencies: `pip install -r requirements.txt`
 
 Last step is to set up your Space URL along with your credentials on top of the example code you want to execute with the following values:
-- `HOST_URL` - Domain name of the IOTICSpace with which to communicate. E.g. `HOST_URL=https://uk-metoffice.iotics.space`
+- `HOST_URL` - Domain name of the IOTICSpace with which to communicate. E.g. `HOST_URL=https://my-space.iotics.space`
 - `USER_KEY_NAME` - Key Name of the User Identity
 - `USER_SEED` - Seed of the User Identity
 - `AGENT_KEY_NAME` - Key Name of the Agent Identity
