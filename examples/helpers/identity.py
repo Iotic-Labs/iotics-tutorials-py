@@ -2,6 +2,7 @@ import logging
 import sys
 from datetime import datetime, timedelta
 from time import time
+from typing import Optional
 
 from iotics.lib.grpc.auth import AuthInterface
 from iotics.lib.identity.api.high_level_api import (
@@ -38,7 +39,7 @@ class Identity(AuthInterface):
         self._setup(resolver_url=resolver_url)
 
     @staticmethod
-    def _check_global_var(var, var_name):
+    def _check_global_var(var, var_name: str):
         if not var:
             logging.error("Parameter %s not set", var_name)
             sys.exit(1)
@@ -78,7 +79,7 @@ class Identity(AuthInterface):
 
     @property
     def token_duration(self) -> int:
-        return self._token_duration
+        return int(self._token_duration)
 
     def get_host(self) -> str:
         return self._grpc_endpoint
@@ -87,7 +88,7 @@ class Identity(AuthInterface):
         return self._token
 
     def refresh_token(self):
-        self._token = self._high_level_identity_api.create_agent_auth_token(
+        self._token: str = self._high_level_identity_api.create_agent_auth_token(
             agent_registered_identity=self._agent_identity,
             user_did=self._user_identity.did,
             duration=self._token_duration,
@@ -100,16 +101,17 @@ class Identity(AuthInterface):
         )
 
     def create_twin_with_control_delegation(
-        self, twin_key_name: str, twin_seed: str = None
+        self, twin_key_name: str, twin_seed: Optional[str] = None
     ) -> RegisteredIdentity:
+        twin_seed_bytes: bytes
         if not twin_seed:
-            twin_seed = self._agent_seed
+            twin_seed_bytes = self._agent_seed
         else:
-            twin_seed = bytes.fromhex(twin_seed)
+            twin_seed_bytes = bytes.fromhex(twin_seed)
 
-        twin_identity = (
+        twin_identity: RegisteredIdentity = (
             self._high_level_identity_api.create_twin_with_control_delegation(
-                twin_seed=twin_seed,
+                twin_seed=twin_seed_bytes,
                 twin_key_name=twin_key_name,
                 agent_registered_identity=self._agent_identity,
             )
