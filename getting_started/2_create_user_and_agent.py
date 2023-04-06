@@ -48,6 +48,9 @@ def main():
     # Make sure you store the following credentials in a safe place
     # as they will be used any time you want to use the API.
     # If you lose them you will not be able to interact with your twins anymore.
+    # Now that User and Agents are created with authentication delegation, you can now copy-paste:
+    # - the User credentials into the "constants.py" file within the "helpers" folder;
+    # - the Agent credentials into each script you want to run.
     print("User and Agent created with Authentication Delegation")
     print("Please store the following credentials in a safe place !!")
     print("---")
