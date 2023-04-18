@@ -2,9 +2,10 @@ import logging
 import random
 import sys
 import threading
+from collections import namedtuple
 from time import sleep
 from typing import List
-from collections import namedtuple
+
 from helpers.constants import (
     PROPERTY_KEY_COLOR,
     PROPERTY_KEY_COMMENT,
@@ -64,6 +65,7 @@ class HelicoptersConnector:
             user_seed=USER_SEED,
             agent_key_name=AGENT_KEY_NAME,
             agent_seed=AGENT_SEED,
+            token_duration=300,
         )
         self._iotics_api = IOTICSviagRPC(auth=self._identity)
 
@@ -119,9 +121,12 @@ class HelicoptersConnector:
 
             logging.info("Shared %s from Twin %s", missiles_fired, twin_from_model_did)
 
-    def change_location(self, twin_from_model_did_list: List[str]):
+    def change_location(self, twin_from_model_did_list: List[str], hq_twin):
+        hq_twin_did = hq_twin.twinId.id
+        hq_twin_input_id = hq_twin.inputs[0].inputId.id
+
         for twin_from_model_did in twin_from_model_did_list:
-            new_location = LOCATION_LIST[random.randint(0, len(LOCATION_LIST - 1))]
+            new_location = LOCATION_LIST[random.randint(0, len(LOCATION_LIST) - 1)]
 
             self._iotics_api.update_twin(
                 twin_did=twin_from_model_did,
@@ -129,7 +134,7 @@ class HelicoptersConnector:
             )
 
             logging.info(
-                "New Location of Twin %s: LAT=%f, LON=%f",
+                "New Location of Twin %s: LAT=%s, LON=%s",
                 twin_from_model_did,
                 new_location.lat,
                 twin_from_model_did,
@@ -138,9 +143,13 @@ class HelicoptersConnector:
             # We need the HQ Twin info
             self._iotics_api.send_input_message(
                 sender_twin_id=twin_from_model_did,
-                receiver_twin_id="hq_twin",
-                input_id="new_location",
-                message={"new_lat": new_location.lat, "new_lon": new_location.lon},
+                receiver_twin_id=hq_twin_did,
+                input_id=hq_twin_input_id,
+                message={
+                    "new_lat": new_location.lat,
+                    "new_lon": new_location.lon,
+                    "twin_did": twin_from_model_did,
+                },
             )
 
             logging.info("Sent new location to HQ Twin")
@@ -264,14 +273,16 @@ def main():
 
         twin_from_model_did_list.append(twin_from_model_did)
 
-    helicop
+    hq_twin = connector.search_for_hq_twin()
 
     try:
         while True:
             # Share random data using the Twins from Model
             connector.share_random_data(twin_from_model_did_list)
-            connector.change_location(twin_from_model_did_list)
-            sleep(3)
+            connector.change_location(
+                twin_from_model_did_list=twin_from_model_did_list, hq_twin=hq_twin
+            )
+            sleep(30)
     except KeyboardInterrupt:
         pass
 
