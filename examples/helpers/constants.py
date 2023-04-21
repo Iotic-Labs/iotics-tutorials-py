@@ -39,3 +39,32 @@ SUBSCRIBE_TO_FEED = RestEndpoint(
     url="/qapi/hosts/{twin_follower_host_id}/twins/{twin_follower_did}/interests/hosts/{twin_publisher_host_id}/twins/{twin_publisher_did}/feeds/{feed_id}",
 )
 SEARCH_TWINS = RestEndpoint(method="POST", url="{host}/qapi/searches")
+
+# LEO DEMO
+Location = namedtuple("Location", ["lat", "lon", "host_id", "location_name"])
+LOCATION_LIST = [
+    Location(
+        lat=51.5,
+        lon=-0.1,
+        host_id="did:iotics:iotQqydwQzMk63eVR1PL8b2NuAUKNCmHDai9",
+        location_name="Kansas",
+    ),  # demo.dev
+    Location(
+        lat=48.84,
+        lon=2.31,
+        host_id="did:iotics:iotAUp5hdAaQrkZEUXMjLud4pJdn6jasuck3",
+        location_name="Emerald City",
+    ),  # uk-metoffice.dev
+    Location(
+        lat=52.36,
+        lon=4.88,
+        host_id="did:iotics:iotPevBWVGxviCez8pFjj5dJrBW1gnWokavs",
+        location_name="Gillikin Country",
+    ),  # tfl.dev
+]
+
+HOST_URL = ""
+USER_KEY_NAME = ""
+USER_SEED = ""
+AGENT_KEY_NAME = ""
+AGENT_SEED = ""

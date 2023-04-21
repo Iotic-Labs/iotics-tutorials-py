@@ -2,19 +2,23 @@ import logging
 import random
 import sys
 import threading
-from collections import namedtuple
 from time import sleep
 from typing import List
 
 from helpers.constants import (
+    AGENT_KEY_NAME,
+    AGENT_SEED,
+    HOST_URL,
+    LOCATION_LIST,
     PROPERTY_KEY_COLOR,
-    PROPERTY_KEY_COMMENT,
     PROPERTY_KEY_CREATED_BY,
     PROPERTY_KEY_FROM_MODEL,
     PROPERTY_KEY_LABEL,
     PROPERTY_KEY_SPACE_NAME,
     PROPERTY_KEY_TYPE,
     PROPERTY_VALUE_MODEL,
+    USER_KEY_NAME,
+    USER_SEED,
 )
 from helpers.identity import Identity
 from helpers.utilities import auto_refresh_token_grpc, get_host_endpoints
@@ -27,24 +31,10 @@ from iotics.lib.grpc.helpers import (
 )
 from iotics.lib.grpc.iotics_api import IoticsApi as IOTICSviagRPC
 
-HOST_URL = ""
-USER_KEY_NAME = ""
-USER_SEED = ""
-AGENT_KEY_NAME = ""
-AGENT_SEED = ""
-
-Location = namedtuple("Location", ["lat", "lon"])
-
-LOCATION_LIST = [
-    Location(lat=51.5, lon=-0.1),  # London
-    Location(lat=48.84, lon=2.31),  # Paris
-    Location(lat=50.84, lon=4.35),  # Brussels
-    Location(lat=52.36, lon=4.88),  # Amsterdam
-]
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
+    format="%(message)s",
     handlers=[logging.StreamHandler(stream=sys.stdout)],
 )
 
@@ -65,7 +55,6 @@ class HelicoptersConnector:
             user_seed=USER_SEED,
             agent_key_name=AGENT_KEY_NAME,
             agent_seed=AGENT_SEED,
-            token_duration=300,
         )
         self._iotics_api = IOTICSviagRPC(auth=self._identity)
 
@@ -91,16 +80,14 @@ class HelicoptersConnector:
 
         twin_did = twin_identity.did
 
-        resp = self._iotics_api.upsert_twin(
+        self._iotics_api.upsert_twin(
             twin_did=twin_did, location=location, properties=properties, feeds=feeds
         )
-        if resp:
-            logging.info("Twin %s upserted", twin_did)
 
         return twin_did
 
-    def share_random_data(self, twin_from_model_did_list: List[str]):
-        for twin_from_model_did in twin_from_model_did_list:
+    def share_random_data(self, twin_from_model_did_dict: dict):
+        for twin_from_model_did, twin_label in twin_from_model_did_dict.items():
             aircraft_hours = {"hours": random.randint(1, 100)}
 
             self._iotics_api.share_feed_data(
@@ -109,7 +96,7 @@ class HelicoptersConnector:
                 data=aircraft_hours,
             )
 
-            logging.info("Shared %s from Twin %s", aircraft_hours, twin_from_model_did)
+            logging.debug("Shared %s from Twin %s", aircraft_hours, twin_label)
 
             missiles_fired = {"n_missiles": random.randint(1, 50)}
 
@@ -119,13 +106,13 @@ class HelicoptersConnector:
                 data=missiles_fired,
             )
 
-            logging.info("Shared %s from Twin %s", missiles_fired, twin_from_model_did)
+            logging.debug("Shared %s from Twin %s", missiles_fired, twin_label)
 
-    def change_location(self, twin_from_model_did_list: List[str], hq_twin):
+    def change_location(self, twin_from_model_did_dict: dict, hq_twin):
         hq_twin_did = hq_twin.twinId.id
         hq_twin_input_id = hq_twin.inputs[0].inputId.id
 
-        for twin_from_model_did in twin_from_model_did_list:
+        for twin_from_model_did, twin_label in twin_from_model_did_dict.items():
             new_location = LOCATION_LIST[random.randint(0, len(LOCATION_LIST) - 1)]
 
             self._iotics_api.update_twin(
@@ -134,10 +121,7 @@ class HelicoptersConnector:
             )
 
             logging.info(
-                "New Location of Twin %s: LAT=%s, LON=%s",
-                twin_from_model_did,
-                new_location.lat,
-                twin_from_model_did,
+                "New Location of Twin %s: %s", twin_label, new_location.location_name
             )
 
             # We need the HQ Twin info
@@ -146,16 +130,16 @@ class HelicoptersConnector:
                 receiver_twin_id=hq_twin_did,
                 input_id=hq_twin_input_id,
                 message={
-                    "new_lat": new_location.lat,
-                    "new_lon": new_location.lon,
+                    "new_location": new_location.location_name,
                     "twin_did": twin_from_model_did,
+                    "twin_label": twin_label,
                 },
             )
 
-            logging.info("Sent new location to HQ Twin")
+            logging.debug("Sent new location to HQ Twin")
 
     def search_for_hq_twin(self):
-        logging.info("Searching for HQ Twin...")
+        logging.debug("Searching for HQ Twin...")
         twins_found_list = []
         payload = self._iotics_api.get_search_payload(
             properties=[
@@ -171,9 +155,9 @@ class HelicoptersConnector:
                 twins = response.payload.twins
                 twins_found_list.extend(twins)
 
-            logging.info("Found %s HQ Twins", len(twins_found_list))
+            logging.debug("Found %s HQ Twins", len(twins_found_list))
             if not twins_found_list:
-                sleep(5)
+                sleep(3)
 
         hq_twin = twins_found_list[0]
 
@@ -192,11 +176,6 @@ def main():
             ),
             create_property(
                 key=PROPERTY_KEY_LABEL, value="Helicopter Model", language="en"
-            ),
-            create_property(
-                key=PROPERTY_KEY_COMMENT,
-                value="Model of a Helicopter Twin",
-                language="en",
             ),
             create_property(key=PROPERTY_KEY_SPACE_NAME, value="demo"),
             create_property(key=PROPERTY_KEY_COLOR, value="#9aceff"),
@@ -225,8 +204,9 @@ def main():
     )
 
     # Create 3 Twins from Model
-    twin_from_model_did_list = []
+    twin_from_model_did_dict = {}
     for helicopter in range(3):
+        twin_label = f"Helicopter {helicopter+1}"
         twin_from_model_did = connector.create_new_twin(
             twin_key_name=f"Helicopter{helicopter}",
             properties=[
@@ -234,9 +214,7 @@ def main():
                     key=PROPERTY_KEY_FROM_MODEL, value=twin_model_did, is_uri=True
                 ),
                 create_property(
-                    key=PROPERTY_KEY_LABEL,
-                    value=f"Helicopter {helicopter+1}",
-                    language="en",
+                    key=PROPERTY_KEY_LABEL, value=twin_label, language="en"
                 ),
                 create_property(key=PROPERTY_KEY_SPACE_NAME, value="demo"),
                 create_property(key=PROPERTY_KEY_COLOR, value="#9aceff"),
@@ -268,21 +246,27 @@ def main():
             ],
             location=create_location(
                 lat=LOCATION_LIST[0].lat, lon=LOCATION_LIST[0].lon
-            ),  # London
+            ),
         )
 
-        twin_from_model_did_list.append(twin_from_model_did)
+        twin_from_model_did_dict.update({twin_from_model_did: twin_label})
+
+        logging.info("Created Twin %s", twin_label)
 
     hq_twin = connector.search_for_hq_twin()
+    logging.info("---")
+    # input()
 
     try:
         while True:
             # Share random data using the Twins from Model
-            connector.share_random_data(twin_from_model_did_list)
+            connector.share_random_data(twin_from_model_did_dict)
             connector.change_location(
-                twin_from_model_did_list=twin_from_model_did_list, hq_twin=hq_twin
+                twin_from_model_did_dict=twin_from_model_did_dict, hq_twin=hq_twin
             )
-            sleep(30)
+            # input()
+            logging.info("---")
+            sleep(3)
     except KeyboardInterrupt:
         pass
 
