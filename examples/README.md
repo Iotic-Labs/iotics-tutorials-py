@@ -48,3 +48,14 @@ __Features__
 -   Auth Token refreshed automatically before it expires;
 
 ![Publisher Connector](./img/synthesiser_connector.png)
+
+## Data Bypass
+
+It creates:
+1. a Twin Response;
+2. a Twin Request 1 belonging to Organisation A
+3. a Twin Request 2 belonging to Organisation B
+
+The Twin Request 1 and 2 want to access a DB that Twin Response has control of. They send their (Input) request to the Twin Response. The latter receives the request, describes the aforementioned Twins and finds out that Twin Request 2 doesn't belong to an Organisation allowed to access the DB. Twin Response, therefore, sends a passcode to access the DB to Twin Request 1 only so the latter can use it.
+
+![Data Bypass](./img/data_bypass.png)
