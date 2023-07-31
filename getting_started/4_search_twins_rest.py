@@ -60,15 +60,14 @@ def main():
 
     # The Search headers require an additional field: "Iotics-RequestTimeout".
     # The latter is used to stop the search request once the timeout is reached
-    search_headers: dict = {
-        "accept": "application/json",
-        "Iotics-ClientAppId": "search_twins",
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {token}",
-        "Iotics-RequestTimeout": (
-            datetime.now(tz=timezone.utc) + timedelta(seconds=float(3))
-        ).isoformat(),
-    }
+    search_headers: dict = headers.copy()
+    search_headers.update(
+        {
+            "Iotics-RequestTimeout": (
+                datetime.now(tz=timezone.utc) + timedelta(seconds=float(3))
+            ).isoformat()
+        }
+    )
 
     # We want to execute a Search Twins operation to find the Twin Publisher implemented in the previous exercise.
     # To do that we need to define (1) the search criteria and (2) the type of results we want to get as a response.
