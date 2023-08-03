@@ -69,25 +69,33 @@ def main():
         "Authorization": f"Bearer {token}",
     }
 
-    def feed_data_callback(headers, body):
+    def feed_data_callback(stomp_headers, body):
         encoded_data = json.loads(body)
-        print(headers)
-        print(encoded_data)
-        followed_twin_did = encoded_data["interest"]["followedFeedId"]["twinId"]
-        follower_twin_did = encoded_data["interest"]["followerTwinId"]["id"]
 
         try:
-            data = encoded_data["feedData"]["data"]
+            followed_twin_id = encoded_data["interest"]["followedFeedId"]["twinId"]
+            follower_twin_did = encoded_data["interest"]["followerTwinId"]["id"]
+            followed_feed_id = encoded_data["interest"]["followedFeedId"]["id"]
+            received_data = encoded_data["feedData"]["data"]
+            mime_type = encoded_data["feedData"]["mime"]
+            occurred_at = encoded_data["feedData"]["occurredAt"]
         except KeyError:
             print("No data")
-        # else:
-        # make_api_call(
-        #     method="POST",
-        #     endpoint=f"{HOST_URL}/qapi/twins/{follower_twin_did}/feeds/{synth_feed_id}/shares",
-        #     headers=headers,
-        #     payload=data_to_share_payload,
-        # )
-        # # TODO forward data
+        else:
+            data_to_share_payload: dict = {
+                "sample": {
+                    "data": received_data,
+                    "mime": mime_type,
+                    "occurredAt": occurred_at,
+                }
+            }
+            make_api_call(
+                method="POST",
+                endpoint=f"{HOST_URL}/qapi/twins/{follower_twin_did}/feeds/{followed_feed_id}/shares",
+                headers=headers,
+                payload=data_to_share_payload,
+            )
+            print(f"Forwarded data sample received from Twin {followed_twin_id}")
 
     stomp_url: str = iotics_index.get("stomp")
     stomp_client: StompClient = StompClient(

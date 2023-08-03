@@ -98,7 +98,7 @@ def main():
     # Hopefully there will be only 1 Twin Model returned by the Search operation
     twin_of_interest = next(iter(twins_found_list))
     # In order to replicate the structure of a Twin Model we need to describe all its components:
-    # - Twin Properties (fortunately these are returned by the search operation);
+    # - Twin Properties (these are returned by the search operation);
     # - Feeds: unfortunately we need to perform a describe Feed operation for each Twin Model's Feed
     # - Inputs: same as above
     twin_model_did: str = twin_of_interest.twinId.id
