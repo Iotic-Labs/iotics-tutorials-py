@@ -1,24 +1,22 @@
 """
 """
 
+import json
 import threading
 from time import sleep
 from typing import List
 
+import grpc
+
 from helpers.constants import (
     ALLOW_ALL,
-    CAR,
     CREATED_BY,
     ELECTRIC_ENGINE,
     FUEL_TYPE,
     HOST_ALLOW_LIST,
     HOST_METADATA_ALLOW_LIST,
     INDEX_URL,
-    DEFINES,
     LABEL,
-    TWIN_FROM_MODEL,
-    TWIN_MODEL,
-    TYPE,
     USER_KEY_NAME,
     USER_SEED,
 )
@@ -27,7 +25,6 @@ from helpers.utilities import make_api_call
 from iotics.lib.grpc.helpers import (
     create_feed_with_meta,
     create_property,
-    create_input_with_meta,
 )
 from iotics.lib.grpc.iotics_api import IoticsApi
 from iotics.lib.identity.api.high_level_api import (
@@ -94,6 +91,36 @@ def main():
     print(f"Found {len(twins_found_list)} Twin(s) based on the search criteria")
     print("---")
 
+    def receive_and_forward_feed_data(
+        feed_listener, wait_for_twin_creation: threading.Event
+    ):
+        wait_for_twin_creation.wait()
+
+        try:
+            for latest_feed_data in feed_listener:
+                try:
+                    feed_data_payload = latest_feed_data.payload
+                    followed_twin_id = feed_data_payload.interest.followedFeedId.twinId
+                    follower_twin_id = feed_data_payload.interest.followerTwinId.id
+                    followed_feed_id = feed_data_payload.interest.followedFeedId.id
+                    received_data = json.loads(feed_data_payload.feedData.data)
+                    occurred_at = feed_data_payload.feedData.occurredAt
+                except AttributeError as ex:
+                    print("An exception was raised when receiving Feed Data", ex)
+                else:
+                    iotics_api.share_feed_data(
+                        twin_did=follower_twin_id,
+                        feed_id=followed_feed_id,
+                        data=received_data,
+                        occurred_at=occurred_at.seconds,
+                    )
+                    print(
+                        f"Forwarded data sample received from Twin {followed_twin_id}"
+                    )
+
+        except grpc._channel._MultiThreadedRendezvous:
+            print("Token expired")
+
     for count, car_twin in enumerate(twins_found_list):
         twin_shadow_identity: RegisteredIdentity = (
             identity_api.create_twin_with_control_delegation(
@@ -103,7 +130,7 @@ def main():
             )
         )
 
-        car_twin_id: str = car_twin.id
+        car_twin_id: str = car_twin.twinId.id
         car_twin_properties: List[dict] = car_twin.properties
         twin_shadow_properties: List[dict] = [
             create_property(key=HOST_ALLOW_LIST, value=ALLOW_ALL, is_uri=True),
@@ -140,16 +167,20 @@ def main():
                 )
             )
 
-            # threading.Thread(
-            #     target=subscribe_to_feed,
-            #     args=(
-            #         twin_shadow_identity.did,
-            #         car_twin_id,
-            #         feed_id,
-            #         wait_for_twin_creation,
-            #     ),
-            #     daemon=True,
-            # ).start()
+            feed_listener = iotics_api.fetch_interests(
+                follower_twin_did=twin_shadow_identity.did,
+                followed_twin_did=car_twin_id,
+                followed_feed_id=feed_id,
+            )
+
+            threading.Thread(
+                target=receive_and_forward_feed_data,
+                args=(
+                    feed_listener,
+                    wait_for_twin_creation,
+                ),
+                daemon=True,
+            ).start()
 
         iotics_api.upsert_twin(
             twin_did=twin_shadow_identity.did,

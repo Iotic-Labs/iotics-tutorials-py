@@ -74,7 +74,7 @@ def main():
 
         try:
             followed_twin_id = encoded_data["interest"]["followedFeedId"]["twinId"]
-            follower_twin_did = encoded_data["interest"]["followerTwinId"]["id"]
+            follower_twin_id = encoded_data["interest"]["followerTwinId"]["id"]
             followed_feed_id = encoded_data["interest"]["followedFeedId"]["id"]
             received_data = encoded_data["feedData"]["data"]
             mime_type = encoded_data["feedData"]["mime"]
@@ -91,7 +91,7 @@ def main():
             }
             make_api_call(
                 method="POST",
-                endpoint=f"{HOST_URL}/qapi/twins/{follower_twin_did}/feeds/{followed_feed_id}/shares",
+                endpoint=f"{HOST_URL}/qapi/twins/{follower_twin_id}/feeds/{followed_feed_id}/shares",
                 headers=headers,
                 payload=data_to_share_payload,
             )

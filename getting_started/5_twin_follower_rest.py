@@ -135,26 +135,30 @@ def main():
 
     # We now want to define a function that will be used as a callback for new data samples
     def feed_data_callback(headers, body):
-        # When a new data sample is received (in other words sent by the Twin Publisher),
-        # then simply decode it and print it on screen.
-        # Of course, in advanced application, the following block will contain the logic
-        # you want to trigger whenever a new data sample is received (see exercise #8).
         encoded_data = json.loads(body)
-        # The folloing variable includes the Twin ID of the Twin Publisher,
-        # useful to know when you subscribe to several Feeds of different Twins
-        followed_twin_did = encoded_data["interest"]["followedFeedId"]["twinId"]
 
         try:
             # 'time' includes the datetime the data was shared by the Twin Publisher
-            time = encoded_data["feedData"]["occurredAt"]
-            data = encoded_data["feedData"]["data"]
+            followed_twin_id = encoded_data["interest"]["followedFeedId"]["twinId"]
+            follower_twin_id = encoded_data["interest"]["followerTwinId"]["id"]
+            followed_feed_id = encoded_data["interest"]["followedFeedId"]["id"]
+            received_data = encoded_data["feedData"]["data"]
+            mime_type = encoded_data["feedData"]["mime"]
+            occurred_at = encoded_data["feedData"]["occurredAt"]
         except KeyError:
             print("No data")
         else:
-            decoded_feed_data = json.loads(base64.b64decode(data).decode("ascii"))
-            print(
-                f"Received data {decoded_feed_data} from Twin {followed_twin_did} at time {time}"
+            # When a new data sample is received (in other words sent by the Twin Publisher),
+            # we simply decode it and print it on screen.
+            # In advanced applications, this section will contain the logic
+            # you want to trigger whenever a new data sample is received (see exercise #8).
+            decoded_feed_data = json.loads(
+                base64.b64decode(received_data).decode("ascii")
             )
+            print(
+                f"Received Feed data {decoded_feed_data} published from Twin Publisher {followed_twin_id}", end=" "
+            )
+            print(f"to Twin Follower {follower_twin_id} via Feed {followed_feed_id}")
 
     # In order to subscribe to a Feed (or an Input) via REST, the only way is to use STOMP.
     # STOMP defines a protocol for clients and servers to communicate with messaging semantics.
