@@ -60,15 +60,14 @@ def main():
 
     # The Search headers require an additional field: "Iotics-RequestTimeout".
     # The latter is used to stop the search request once the timeout is reached
-    search_headers: dict = {
-        "accept": "application/json",
-        "Iotics-ClientAppId": "search_twins",
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {token}",
-        "Iotics-RequestTimeout": (
-            datetime.now(tz=timezone.utc) + timedelta(seconds=float(3))
-        ).isoformat(),
-    }
+    search_headers: dict = headers.copy()
+    search_headers.update(
+        {
+            "Iotics-RequestTimeout": (
+                datetime.now(tz=timezone.utc) + timedelta(seconds=float(3))
+            ).isoformat()
+        }
+    )
 
     # We want to execute a Search Twins operation to find the Twin Publisher implemented in the previous exercise.
     # To do that we need to define (1) the search criteria and (2) the type of results we want to get as a response.
@@ -138,8 +137,8 @@ def main():
             lat: float = location.get("lat")
             lon: float = location.get("lon")
             print("Location:")
-            print(f"   lat:", lat)
-            print(f"   lon:", lon)
+            print("   lat:", lat)
+            print("   lon:", lon)
 
         print(f"Twin Properties ({len(twin_properties)}):")
         for twin_property in twin_properties:
@@ -148,7 +147,7 @@ def main():
     # As mentioned in the description above, the Search operation (when response_type = FULL)
     # allows to return the Twin's Metadata along with the list of Feed IDs and Input IDs.
     # However in order to get the Feed's and/or Input's Metadata, the related Describe operation must be used.
-    twin_feeds: List[dict] = twin.get("feeds")
+    twin_feeds: List[dict] = twin.get("feeds", [])
     print(f"Twin feeds ({len(twin_feeds)}):")
 
     for twin_feed in twin_feeds:
@@ -156,7 +155,7 @@ def main():
         print(f"-  Feed ID: {feed_id}")
 
     # Same as Feeds, in order to get the Input's Metadata, the Describe Input operation must be used.
-    twin_inputs: List[dict] = twin.get("inputs")
+    twin_inputs: List[dict] = twin.get("inputs", [])
     print(f"Twin Inputs ({len(twin_inputs)}):")
 
     for twin_input in twin_inputs:

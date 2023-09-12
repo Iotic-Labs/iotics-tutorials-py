@@ -6,6 +6,8 @@ Run this script while running an instance of the Twin Publisher (exercise #3).
 
 import json
 
+import grpc
+
 from helpers.constants import (
     CELSIUS_DEGREES,
     CREATED_BY,
@@ -146,8 +148,8 @@ def main():
     sample_count: int = 1
     previous_mean: float = 0
 
-    for latest_feed_data in feed_listener:
-        try:
+    try:
+        for latest_feed_data in feed_listener:
             # The following variable includes the (temperature) data sent by the Twin Publisher
             data_received: dict = json.loads(latest_feed_data.payload.feedData.data)
             print(f"Received Feed data {data_received}")
@@ -171,8 +173,8 @@ def main():
             # Update the average
             sample_count += 1
             previous_mean = new_mean
-        except KeyboardInterrupt:
-            break
+    except grpc._channel._MultiThreadedRendezvous:
+        print("Token expired")
 
 
 if __name__ == "__main__":

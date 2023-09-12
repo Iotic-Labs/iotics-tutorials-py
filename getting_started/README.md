@@ -41,6 +41,13 @@ A Twin Synthesiser is a Twin that:
 
 A Twin Model is a Twin that serves as a template for other Twins. It must include a specific Twin Property to be classified as a Twin Model. Although this type of Twin can include one or more Feeds and/or Inputs, it should not incorporate any behaviour (logic): publish/follow/send/receive.
 
-## 10. Twin from Model
+## 10. Twins from Model
 
 A Twin from Model is a Twin that replicates the structure (Properties, Feed(s) and Input(s)) of a Twin Model. It must include a specific Twin Property for it to be classified as a Twin from Model. This type of Twin can incorporate a behaviour: publish/follow/send/receive.
+
+## 11. Twin Shadow
+
+Twins Shadow are Twins that virtualise other Twins. They are generally used to:
+-   provide a stub or a simulation of an existing Twin;
+-   throttle or anonymise the data published;
+-   to partition security and access control to feeds and Metadata selectively.

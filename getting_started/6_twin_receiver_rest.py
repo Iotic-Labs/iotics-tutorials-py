@@ -168,7 +168,7 @@ def main():
             subscription_id=f"{twin_receiver_did}-{input_id}",
         )
 
-    print(f"Waiting for Input messages...")
+    print("Waiting for Input messages...")
 
     # We now just need to wait for incoming messages sent by the Twin Sender
     while True:

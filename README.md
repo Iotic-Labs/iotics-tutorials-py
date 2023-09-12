@@ -6,7 +6,7 @@ If you haven't done it already, you might want to take a quick look at what [IOT
 ## Repository Structure
 
 The repository is divided into the following subfolders:
-- __getting_started__ (WIP): contains a set of tutorials focused on the basic IOTICS operations;
+- __getting_started__: contains a set of tutorials focused on the basic IOTICS operations;
 - __examples__: contains more advanced and complete applications.
 
 ## Setup

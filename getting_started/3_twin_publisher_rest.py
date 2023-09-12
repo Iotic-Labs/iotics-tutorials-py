@@ -8,24 +8,23 @@ from random import randint
 from time import sleep
 from typing import List
 
+from helpers.constants import (
+    CELSIUS_DEGREES,
+    CREATED_BY,
+    DEFINES,
+    INDEX_URL,
+    LABEL,
+    LONDON_LAT,
+    LONDON_LON,
+    THERMOMETER,
+    USER_KEY_NAME,
+    USER_SEED,
+)
 from helpers.utilities import make_api_call
 from iotics.lib.identity.api.high_level_api import (
     HighLevelIdentityApi,
     RegisteredIdentity,
     get_rest_high_level_identity_api,
-)
-
-from helpers.constants import (
-    INDEX_URL,
-    LONDON_LAT,
-    LONDON_LON,
-    CREATED_BY,
-    DEFINES,
-    LABEL,
-    THERMOMETER,
-    CELSIUS_DEGREES,
-    USER_KEY_NAME,
-    USER_SEED,
 )
 
 HOST_URL: str = ""  # URL of your IOTICSpace (i.e.: "https://my-space.iotics.space")

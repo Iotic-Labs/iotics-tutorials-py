@@ -3,13 +3,13 @@ with an Input that waits for Input messages.
 """
 
 import json
-import threading
+from threading import Thread
 from time import sleep
 
 from helpers.constants import (
-    INDEX_URL,
     CREATED_BY,
     DEFINES,
+    INDEX_URL,
     LABEL,
     LIGHT_BULB,
     USER_KEY_NAME,
@@ -133,8 +133,8 @@ def main():
             twin_did=twin_receiver_did, input_id=input_id
         )
 
-        threading.Thread(
-            target=get_input_data, args=(input_listener, input_id), daemon=True
+        Thread(
+            target=get_input_data, args=[input_listener, input_id], daemon=True
         ).start()
 
     # We now just need to wait for incoming messages sent by the Twin Sender
