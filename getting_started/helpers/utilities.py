@@ -85,6 +85,7 @@ def print_value_rest(value: dict, formatting=""):
     print(f"{formatting}   Unit:", value_unit)
     print(f"{formatting}   Datatype:", value_datatype)
 
+
 def print_value_grpc(value: dict, formatting=""):
     value_label = value.get("label")
     value_comment = value.get("comment")

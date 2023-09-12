@@ -5,16 +5,17 @@ Twins from Model should include some logic to handle the sharing of data Feeds a
 """
 
 from random import randint
-import threading
+from threading import Thread
 from time import sleep
 from typing import List
 
 from helpers.constants import (
     CAR,
+    CREATED_BY,
+    DEFINES,
     ELECTRIC_ENGINE,
     FUEL_TYPE,
     INDEX_URL,
-    DEFINES,
     LABEL,
     TWIN_FROM_MODEL,
     TWIN_MODEL,
@@ -26,8 +27,8 @@ from helpers.identity_interface import IdentityInterface
 from helpers.utilities import make_api_call
 from iotics.lib.grpc.helpers import (
     create_feed_with_meta,
-    create_property,
     create_input_with_meta,
+    create_property,
 )
 from iotics.lib.grpc.iotics_api import IoticsApi
 from iotics.lib.identity.api.high_level_api import (
@@ -81,6 +82,7 @@ def main():
         properties=[
             create_property(key=TYPE, value=TWIN_MODEL, is_uri=True),
             create_property(key=DEFINES, value=CAR, is_uri=True),
+            create_property(key=CREATED_BY, value="Michael Joseph Jackson"),
         ],
         response_type="FULL",
     )
@@ -142,7 +144,7 @@ def main():
             except KeyboardInterrupt:
                 break
 
-    share_data_thread_list: List[threading.Thread] = []
+    share_data_thread_list: List[Thread] = []
 
     # We are now ready to create our 3 Twins from Model
     for car_n in range(3):
@@ -165,6 +167,7 @@ def main():
             # a specific Twin Model DID.
             create_property(key=TWIN_FROM_MODEL, value=twin_model_did, is_uri=True),
             create_property(key=LABEL, value=f"Twin Car {car_n+1}", language="en"),
+            create_property(key=TYPE, value=CAR, is_uri=True),
         ]
 
         # Now we can scan the Twin Model's property list so we can use them to build
@@ -173,7 +176,9 @@ def main():
             # Among all the Twin Model's properties we want to skip:
             # - the specific property of a Twin Model (type = Model)
             # - Label since we defined it above
-            if twin_model_property.key in [TYPE, LABEL]:
+            # - Defines, since it refers to the Ontology definition
+            # in the Twin Model only
+            if twin_model_property.key in [TYPE, LABEL, DEFINES]:
                 continue
 
             # We can now define the fuel type property that we didn't set for the Twin Model.
@@ -207,8 +212,8 @@ def main():
             )
 
             # For each Feed we want to create a Thread that handles the logic of sharing data
-            th = threading.Thread(
-                target=share_data, args=(twin_car_identity.did, feed_id), daemon=True
+            th = Thread(
+                target=share_data, args=[twin_car_identity.did, feed_id], daemon=True
             )
 
             # We havent created the Twin from Model yet, so we can't start the thread !!

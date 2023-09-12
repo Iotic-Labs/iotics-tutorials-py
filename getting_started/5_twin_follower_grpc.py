@@ -6,12 +6,13 @@ Run this script while running an instance of the Twin Publisher (exercise #3).
 """
 
 import json
-import threading
+from threading import Thread
 from time import sleep
 
 import grpc
-
+from helpers.constants import DEFINES, INDEX_URL, THERMOMETER, USER_KEY_NAME, USER_SEED
 from helpers.identity_interface import IdentityInterface
+from helpers.utilities import make_api_call
 from iotics.lib.grpc.helpers import create_property
 from iotics.lib.grpc.iotics_api import IoticsApi
 from iotics.lib.identity.api.high_level_api import (
@@ -19,9 +20,6 @@ from iotics.lib.identity.api.high_level_api import (
     RegisteredIdentity,
     get_rest_high_level_identity_api,
 )
-
-from helpers.constants import DEFINES, INDEX_URL, THERMOMETER, USER_KEY_NAME, USER_SEED
-from helpers.utilities import make_api_call
 
 HOST_URL: str = ""
 
@@ -152,9 +150,7 @@ def main():
 
             # Since the 'fetch_interests' returns a blocking function, we can create a Thread
             # to handle the receival of data samples from it so that we can perform other duties.
-            threading.Thread(
-                target=get_feed_data, args=(feed_listener,), daemon=True
-            ).start()
+            Thread(target=get_feed_data, args=[feed_listener], daemon=True).start()
 
     # We now just need to wait for new data sent by the Twin Publisher
     while True:

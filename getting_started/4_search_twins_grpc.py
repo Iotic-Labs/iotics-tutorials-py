@@ -105,8 +105,8 @@ def main():
             lat = location.lat
             lon = location.lon
             print("Location:")
-            print(f"   lat:", lat)
-            print(f"   lon:", lon)
+            print("   lat:", lat)
+            print("   lon:", lon)
 
         print(f"Twin Properties ({len(twin_properties)}):")
         for twin_property in twin_properties:

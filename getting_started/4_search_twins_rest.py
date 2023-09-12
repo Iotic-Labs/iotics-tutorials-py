@@ -137,8 +137,8 @@ def main():
             lat: float = location.get("lat")
             lon: float = location.get("lon")
             print("Location:")
-            print(f"   lat:", lat)
-            print(f"   lon:", lon)
+            print("   lat:", lat)
+            print("   lon:", lon)
 
         print(f"Twin Properties ({len(twin_properties)}):")
         for twin_property in twin_properties:
@@ -147,7 +147,7 @@ def main():
     # As mentioned in the description above, the Search operation (when response_type = FULL)
     # allows to return the Twin's Metadata along with the list of Feed IDs and Input IDs.
     # However in order to get the Feed's and/or Input's Metadata, the related Describe operation must be used.
-    twin_feeds: List[dict] = twin.get("feeds")
+    twin_feeds: List[dict] = twin.get("feeds", [])
     print(f"Twin feeds ({len(twin_feeds)}):")
 
     for twin_feed in twin_feeds:
@@ -155,7 +155,7 @@ def main():
         print(f"-  Feed ID: {feed_id}")
 
     # Same as Feeds, in order to get the Input's Metadata, the Describe Input operation must be used.
-    twin_inputs: List[dict] = twin.get("inputs")
+    twin_inputs: List[dict] = twin.get("inputs", [])
     print(f"Twin Inputs ({len(twin_inputs)}):")
 
     for twin_input in twin_inputs:

@@ -46,3 +46,8 @@ A Twin Model is a Twin that serves as a template for other Twins. It must includ
 A Twin from Model is a Twin that replicates the structure (Properties, Feed(s) and Input(s)) of a Twin Model. It must include a specific Twin Property for it to be classified as a Twin from Model. This type of Twin can incorporate a behaviour: publish/follow/send/receive.
 
 ## 11. Twin Shadow
+
+Twins Shadow are Twins that virtualise other Twins. They are generally used to:
+-   provide a stub or a simulation of an existing Twin;
+-   throttle or anonymise the data published;
+-   to partition security and access control to feeds and Metadata selectively.
