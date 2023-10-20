@@ -1,38 +1,8 @@
 import logging
 import sys
-from time import time
-from typing import Optional
 
 import requests
-from constants import INDEX_JSON_PATH, TOKEN_REFRESH_PERIOD_PERCENT
-from identity import Identity
-from rest_client import RestClient
-from stomp_client import StompClient
-from iotics.lib.grpc.iotics_api import IoticsApi as IOTICSviagRPC
-
-
-def auto_refresh_token_grpc(identity: Identity, iotics_api: IOTICSviagRPC):
-    while True:
-        lasted: float = time() - identity.token_last_updated
-        if lasted >= identity.token_duration * TOKEN_REFRESH_PERIOD_PERCENT:
-            identity.refresh_token()
-            iotics_api.update_channel()
-
-
-def auto_refresh_token_rest_stomp(
-    identity: Identity,
-    rest_client: RestClient,
-    stomp_client: Optional[StompClient] = None,
-):
-    while True:
-        lasted: float = time() - identity.token_last_updated
-        if lasted >= identity.token_duration * TOKEN_REFRESH_PERIOD_PERCENT:
-            identity.refresh_token()
-            new_token: str = identity.get_token()
-            rest_client.new_token(token=new_token)
-
-            if stomp_client:
-                stomp_client.new_token(token=new_token)
+from constants import INDEX_JSON_PATH
 
 
 def get_host_endpoints(host_url: str) -> dict:

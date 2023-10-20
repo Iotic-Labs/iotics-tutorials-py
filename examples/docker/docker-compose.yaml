@@ -1,0 +1,20 @@
+---
+version: "3.9"
+
+name: "iotics-connector-example"
+
+services:
+  # HQ Connector
+  hq:
+    container_name: "hq"
+    build:
+      context: ".."
+      dockerfile: "iotics-connector-example-hq/Dockerfile"
+    command: "python3 /home/iotics/app/main.py"
+    env_file:
+      - ".env"
+    networks: ["connector-example"]
+
+networks:
+  connector-example:
+    name: "iotics-connector-example"
