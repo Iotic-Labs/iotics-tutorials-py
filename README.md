@@ -7,7 +7,7 @@ If you haven't done it already, you might want to take a quick look at what [IOT
 
 The repository is divided into the following subfolders:
 - __getting_started__: contains a set of tutorials focused on the basic IOTICS operations;
-- __examples__: contains more advanced and complete applications.
+- __examples (WIP)__: contains more advanced and complete applications.
 
 ## Setup
 
@@ -33,8 +33,7 @@ Alternatively you can follow the manual steps below:
 
 Last step is to set up your Space URL along with your credentials on top of the example code you want to execute with the following values:
 - `HOST_URL` - Domain name of the IOTICSpace with which to communicate. E.g. `HOST_URL=https://my-space.iotics.space`
-- `USER_KEY_NAME` - Key Name of the User Identity
-- `USER_SEED` - Seed of the User Identity
+- `USER_KEY_NAME` - Key Name of the User Identity (in `helpers/constants.py`)
+- `USER_SEED` - Seed of the User Identity (in `helpers/constants.py`)
 - `AGENT_KEY_NAME` - Key Name of the Agent Identity
 - `AGENT_SEED` - Seed of the Agent Identity
-
