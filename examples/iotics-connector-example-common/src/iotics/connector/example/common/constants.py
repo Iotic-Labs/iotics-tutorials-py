@@ -1,3 +1,8 @@
+from collections import namedtuple
+
+INDEX_JSON_PATH = "/index.json"
+TOKEN_REFRESH_PERIOD_PERCENT = 0.75
+
 # TWIN PROPERTY KEYS
 LABEL = "http://www.w3.org/2000/01/rdf-schema#label"
 COMMENT = "http://www.w3.org/2000/01/rdf-schema#comment"
@@ -54,27 +59,6 @@ LOCATION_LIST = {
 
 # IOTICSPACE INFO
 INDEX_URL = "/index.json"
-
-# GEO COORDINATES
-from collections import namedtuple
-
-LOCATION = namedtuple("location", ["lat", "lon"])
-PIP_LOCATIONS = [
-    LOCATION(lat=50.817743, lon=-1.087644),
-    LOCATION(lat=50.818388, lon=-1.084804),
-    LOCATION(lat=50.808198, lon=-1.090032),
-    LOCATION(lat=50.814297, lon=-1.077536),
-    LOCATION(lat=50.814513, lon=-1.084238),
-    LOCATION(lat=50.816667, lon=-1.095482),
-    LOCATION(lat=50.807839, lon=-1.091394),
-    LOCATION(lat=50.807695, lon=-1.085716),
-    LOCATION(lat=50.820541, lon=-1.080828),
-    LOCATION(lat=50.806734, lon=-1.082922),
-]
-
-# UTILITIES
-TOKEN_REFRESH_PERIOD_PERCENT = 0.75
-
 
 # REST ENDPOINTS
 RestEndpoint = namedtuple("RestEndpoint", ["method", "url"])

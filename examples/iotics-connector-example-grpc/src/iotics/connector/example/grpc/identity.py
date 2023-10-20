@@ -1,10 +1,13 @@
 import logging
 import sys
 from datetime import datetime, timedelta
+from threading import Thread
 from time import time
 from typing import Optional
 
+from constants import TOKEN_REFRESH_PERIOD_PERCENT
 from iotics.lib.grpc.auth import AuthInterface
+from iotics.lib.grpc.iotics_api import IoticsApi as IOTICSviagRPC
 from iotics.lib.identity.api.high_level_api import (
     HighLevelIdentityApi,
     RegisteredIdentity,
@@ -35,6 +38,7 @@ class Identity(AuthInterface):
         self._agent_identity: RegisteredIdentity = None
         self._token: str = None
         self._token_last_updated: float = None
+        self._grpc_api: IOTICSviagRPC = None
 
         self._setup(resolver_url=resolver_url)
 
@@ -80,6 +84,17 @@ class Identity(AuthInterface):
     @property
     def token_duration(self) -> int:
         return int(self._token_duration)
+
+    def set_grpc_api(self, grpc_api: IOTICSviagRPC):
+        self._grpc_api = grpc_api
+        Thread(target=self._auto_refresh_token, daemon=True).start()
+
+    def _auto_refresh_token(self):
+        while True:
+            lasted: float = time() - self.token_last_updated
+            if lasted >= self.token_duration * TOKEN_REFRESH_PERIOD_PERCENT:
+                self.refresh_token()
+                self._grpc_api.update_channel()
 
     def get_host(self) -> str:
         return self._grpc_endpoint

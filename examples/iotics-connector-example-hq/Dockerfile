@@ -1,33 +1,44 @@
 ARG PYTHON_VERSION=3.10
 
+# Builder Stage
 FROM python:${PYTHON_VERSION}-slim-bullseye as builder
 
-WORKDIR /work
-COPY iotics-connector-example-common /work/iotics-connector-example-common
-COPY iotics-connector-example-hq /work/iotics-connector-example-hq
+WORKDIR /app
+COPY iotics-connector-example-common /app/iotics-connector-example-common
+COPY iotics-connector-example-grpc /app/iotics-connector-example-grpc
+COPY iotics-connector-example-hq /app/iotics-connector-example-hq
 
-RUN python3 -m pip install --no-cache-dir build~=0.9.0 && \
-    python3 -m build --wheel --outdir /work/dist/ iotics-connector-example-common && \
-    python3 -m build --wheel --outdir /work/dist/ iotics-connector-example-hq
+RUN pip install --no-cache-dir build~=0.9.0 && \
+    python3 -m build --wheel --outdir /app/dist/ iotics-connector-example-common && \
+    python3 -m build --wheel --outdir /app/dist/ iotics-connector-example-grpc && \
+    python3 -m build --wheel --outdir /app/dist/ iotics-connector-example-hq
 
+# Runtime Stage
 FROM python:${PYTHON_VERSION}-slim-bullseye as runtime
 
-RUN useradd iotics
-RUN mkdir -p /home/iotics && chown -R iotics:iotics /home/iotics
+# Create a non-root user
+RUN useradd iotics \
+    && mkdir -p /home/iotics \
+    && chown -R iotics:iotics /home/iotics
+
 WORKDIR /home/iotics/app
 
 ENV PATH=${PATH}:/home/iotics/.local/bin
 
-COPY --from=builder /work/dist/iotics_connector_example*.whl /home/iotics/app
-COPY --from=builder /work/iotics-connector-example-hq/src/iotics/connector/example/hq/main.py /home/iotics/app
-COPY --from=builder /work/iotics-connector-example-common/src/iotics/connector/example/common/* /home/iotics/app
-RUN chown -R iotics:iotics /home/iotics
+# Copy from the builder stage
+COPY --from=builder /app/dist/iotics_connector_example*.whl \
+    /app/iotics-connector-example-hq/src/iotics/connector/example/hq/main.py \
+    /app/iotics-connector-example-common/src/iotics/connector/example/common/* \
+    /app/iotics-connector-example-grpc/src/iotics/connector/example/grpc/* \
+    /home/iotics/app/
+
+# Change ownership
+RUN chown -R iotics:iotics /home/iotics \
+    && chown iotics:iotics /home/iotics/app/*.whl
 
 USER iotics:iotics
 
-RUN python3 -m pip install \
-    --user \
-    --no-cache-dir \
-    --no-warn-script-location \
-    /home/iotics/app/iotics_connector_example*.whl && \
-    rm /home/iotics/app/*.whl
+# Install application dependencies
+RUN pip install --no-cache-dir build~=0.9.0 \
+    && pip install --no-cache-dir --user --no-warn-script-location /home/iotics/app/iotics_connector_example*.whl \
+    && rm /home/iotics/app/*.whl
