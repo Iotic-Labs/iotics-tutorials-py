@@ -1,21 +1,20 @@
 import logging
 import sys
 from datetime import datetime, timedelta
-from threading import Thread
 from time import sleep, time
-from typing import Optional
+from typing import List, Optional
 
 from constants import TOKEN_REFRESH_PERIOD_PERCENT
-from iotics.lib.grpc.auth import AuthInterface
-from iotics.lib.grpc.iotics_api import IoticsApi as IOTICSviagRPC
 from iotics.lib.identity.api.high_level_api import (
     HighLevelIdentityApi,
     RegisteredIdentity,
     get_rest_high_level_identity_api,
 )
+from rest_client import RestClient
+from stomp_client import StompClient
 
 
-class Identity(AuthInterface):
+class Identity:
     def __init__(
         self,
         resolver_url: str,
@@ -24,9 +23,7 @@ class Identity(AuthInterface):
         agent_key_name: str,
         agent_seed: str,
         token_duration: int = 30,
-        grpc_endpoint: str = None,
     ):
-        self._grpc_endpoint: str = grpc_endpoint
         self._user_key_name: str = user_key_name
         self._user_seed: bytes = bytes.fromhex(user_seed)
         self._agent_key_name: str = agent_key_name
@@ -38,7 +35,6 @@ class Identity(AuthInterface):
         self._agent_identity: RegisteredIdentity = None
         self._token: str = None
         self._token_last_updated: float = None
-        self._grpc_api: IOTICSviagRPC = None
 
         self._setup(resolver_url=resolver_url)
 
@@ -85,26 +81,6 @@ class Identity(AuthInterface):
     def token_duration(self) -> int:
         return int(self._token_duration)
 
-    def set_grpc_api(self, grpc_api: IOTICSviagRPC):
-        self._grpc_api = grpc_api
-        Thread(target=self._auto_refresh_token, daemon=True).start()
-
-    def _auto_refresh_token(self):
-        token_period: int = int(self._token_duration * TOKEN_REFRESH_PERIOD_PERCENT)
-
-        while True:
-            try:
-                time_to_refresh: int = token_period - (time() - self.token_last_updated)
-                sleep(time_to_refresh)
-                self.refresh_token()
-                self._grpc_api.update_channel()
-            except KeyboardInterrupt:
-                logging.debug("Keyboard Interrupt. Exiting Thread")
-                break
-
-    def get_host(self) -> str:
-        return self._grpc_endpoint
-
     def get_token(self) -> str:
         return self._token
 
@@ -143,3 +119,21 @@ class Identity(AuthInterface):
         )
 
         return twin_identity
+
+
+def auto_refresh_token(
+    identity: Identity,
+    rest_client: RestClient,
+    stomp_client_list: List[StompClient] = [],
+):
+    token_period = int(identity.token_duration * TOKEN_REFRESH_PERIOD_PERCENT)
+
+    while True:
+        start_processing_time = time()
+
+        identity.refresh_token()
+        rest_client.new_token(token=identity.get_token())
+        for stomp_client in stomp_client_list:
+            stomp_client.new_token(token=identity.get_token())
+
+        sleep(token_period - (time() - start_processing_time))
