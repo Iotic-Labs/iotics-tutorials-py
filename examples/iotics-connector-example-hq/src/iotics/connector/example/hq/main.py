@@ -126,9 +126,13 @@ def main():
 
     shadow_twins: dict = {}
 
-    def replace_label(twin_properties):
+    def change_properties(original_twin_properties, twin_location):
         new_twin_property_list = []
-        for twin_property in twin_properties:
+
+        for twin_property in original_twin_properties:
+            new_property = None
+
+            # Change Twin Label
             if twin_property.key == constant.LABEL:
                 new_label = twin_property.langLiteralValue.value + " Shadow"
                 new_property = create_property(
@@ -136,37 +140,24 @@ def main():
                     language=twin_property.langLiteralValue.lang,
                     value=new_label,
                 )
-                new_twin_property_list.append(new_property)
-                continue
-
-            new_twin_property_list.append(twin_property)
-
-        return new_twin_property_list, new_label
-
-    def change_sharing_permissions(twin_properties, twin_location):  # to double check
-        new_twin_property_list = []
-
-        if twin_location.lat == constant.LOCATION_LIST[1].lat:
-            host_id = constant.LOCATION_LIST[1].host_id
-        elif twin_location.lat == constant.LOCATION_LIST[2].lat:
-            host_id = constant.LOCATION_LIST[2].host_id
-
-        for twin_property in twin_properties:
-            property_to_add = twin_property
 
             # Data Allow List
-            if twin_property.key == constant.HOST_ALLOW_LIST:
-                property_to_add = create_property(
-                    key=constant.HOST_ALLOW_LIST, value=host_id, is_uri=True
+            elif twin_property.key == constant.HOST_ALLOW_LIST:
+                new_property = create_property(
+                    key=constant.HOST_ALLOW_LIST, value="host_id", is_uri=True
                 )
 
             # Metadata Allow List
             elif twin_property.key == constant.HOST_METADATA_ALLOW_LIST:
-                property_to_add = create_property(
-                    key=constant.HOST_METADATA_ALLOW_LIST, value=host_id, is_uri=True
+                new_property = create_property(
+                    key=constant.HOST_METADATA_ALLOW_LIST, value="host_id", is_uri=True
                 )
 
-            new_twin_property_list.append(property_to_add)
+            # Remaining Properties
+            else:
+                new_property = twin_property
+
+            new_twin_property_list.append(new_property)
 
         return new_twin_property_list
 
@@ -178,9 +169,7 @@ def main():
             data_received: dict = json.loads(data_payload.feedData.data)
 
             iotics_api.share_feed_data(
-                twin_did=twin_publisher_id,
-                feed_id=feed_id,
-                data=data_received,
+                twin_did=twin_publisher_id, feed_id=feed_id, data=data_received
             )
 
     def follow_feed(
@@ -197,17 +186,28 @@ def main():
             )
 
             try:
-                receive_and_forward(iotics_api=iotics_api, feed_listener=feed_listener)
+                receive_and_forward(
+                    iotics_api=iotics_api,
+                    feed_listener=feed_listener,
+                    twin_publisher_id=twin_follower_id,
+                    feed_id=feed_id,
+                )
             except grpc._channel._MultiThreadedRendezvous:
                 logging.debug("Generating new 'feed_listener'")
             except KeyboardInterrupt:
                 logging.debug("Keyboard Interrupt. Exiting Thread")
                 break
             except Exception as ex:
-                logging.exception("Raised an exception in 'receive_and_forward': %s", ex)
+                logging.exception(
+                    "Raised an exception in 'receive_and_forward': %s", ex
+                )
 
     def create_shadow(
-        iotics_api: IoticsApi, twin_description, original_twin_did, twin_location
+        iotics_api: IoticsApi,
+        twin_description,
+        original_twin_did,
+        twin_location,
+        country,
     ):
         feeds_list = []
         twin_feeds = twin_description.payload.result.feeds
@@ -218,7 +218,6 @@ def main():
                 twin_did=original_twin_did, feed_id=feed_id
             )
             feed_properties = feed_description.payload.result.properties
-
             feed_values = feed_description.payload.result.values
 
             feeds_list.append(
@@ -230,11 +229,9 @@ def main():
             )
 
         original_twin_properties = twin_description.payload.result.properties
-        shadow_twin_properties, new_label = replace_label(
-            twin_properties=original_twin_properties
-        )
-        selective_sharing_properties = change_sharing_permissions(
-            twin_properties=shadow_twin_properties, twin_location=twin_location
+        new_twin_property_list = change_properties(
+            original_twin_properties=original_twin_properties,
+            twin_location=twin_location,
         )
 
         shadow_twin_identity = identity.create_twin_with_control_delegation(
@@ -243,23 +240,22 @@ def main():
         shadow_twin_did = shadow_twin_identity.did
         iotics_api.upsert_twin(
             twin_did=shadow_twin_did,
-            properties=selective_sharing_properties,
+            properties=new_twin_property_list,
             feeds=feeds_list,
             location=twin_location,
         )
 
-        logging.info("Created Twin %s", new_label)
-
+        logging.info("Created new Shadow Twin %s in %s", shadow_twin_did, country)
         shadow_twins.update(
             {
                 original_twin_did: {
                     "shadow_twin_did": shadow_twin_did,
-                    "lat": str(twin_location.lat),
-                    "label": new_label,
+                    "country": country,
                 }
             }
         )
 
+        # Make the Shadow Twin share data
         for feed in twin_feeds:
             Thread(
                 target=follow_feed,
@@ -267,36 +263,86 @@ def main():
                 daemon=True,
             ).start()
 
+    def delete_shadow(
+        iotics_api: IoticsApi, shadow_twin_did: str, original_twin_did: str
+    ):
+        iotics_api.delete_twin(twin_did=shadow_twin_did)
+        shadow_twins.pop(original_twin_did)
+
+    def get_country(twin_location) -> str:
+        country = "UK"
+
+        return country
+
+    def update_shadow_twin(
+        iotics_api: IoticsApi,
+        original_twin_did: str,
+        shadow_twin_did: str,
+        new_location,
+        new_country,
+    ):
+        updated_sharing_permissions = [
+            create_property(key=constant.HOST_ALLOW_LIST, value="host_id", is_uri=True),
+            create_property(
+                key=constant.HOST_METADATA_ALLOW_LIST, value="host_id", is_uri=True
+            ),
+        ]
+        iotics_api.update_twin(
+            twin_did=shadow_twin_did,
+            location=new_location,
+            props_added=updated_sharing_permissions,
+            props_keys_deleted=[
+                twin_prop.key for twin_prop in updated_sharing_permissions
+            ],
+        )
+
+        shadow_twins.update(
+            {
+                original_twin_did: {
+                    "shadow_twin_did": shadow_twin_did,
+                    "country": new_country,
+                }
+            }
+        )
+
     def take_action(iotics_api: IoticsApi, drone_twin_did: str):
         twin_description = iotics_api.describe_twin(twin_did=drone_twin_did)
 
         twin_location = twin_description.payload.result.location
-        local_borders = constant.LOCATION_LIST.get("local")
+        new_country = get_country(twin_location=twin_location)
 
         # Create/Update Shadow if the drone's location is outside
         # the related country's border
-        if not (
-            local_borders.lat_min < float(twin_location.lat) < local_borders.lat_max
-            or local_borders.lon_min < float(twin_location.lon) < local_borders.lon_max
-        ):
-            shadow_twin = shadow_twins.get(drone_twin_did)
+        if new_country != constant.ORIGINAL_COUNTRY:
+            shadow_twin: dict = shadow_twins.get(drone_twin_did)
 
             if not shadow_twin:
                 # Create new Shadow
                 create_shadow(
+                    iotics_api=iotics_api,
                     twin_description=twin_description,
                     original_twin_did=drone_twin_did,
                     twin_location=twin_location,
+                    country=new_country,
                 )
 
-        #     # Update existing Shadow
-        #     elif shadow_twin.get("lat") != float(twin_location.lat):
-        #         update_shadow(
-        #             original_twin_did=original_twin_did, twin_location=twin_location
-        #         )
-        # # Twin back to Base
-        # else:
-        #     delete_shadow(original_twin_did=original_twin_did)
+            # Update existing Shadow
+            elif new_country != shadow_twin.get("country"):
+                update_shadow_twin(
+                    iotics_api=iotics_api,
+                    original_twin_did=drone_twin_did,
+                    shadow_twin_did=shadow_twin.get("shadow_twin_did"),
+                    new_location=twin_location,
+                    new_country=new_country,
+                )
+
+        # Twin back to original Country
+        else:
+            delete_shadow(
+                iotics_api=iotics_api,
+                shadow_twin_did=shadow_twin.get("shadow_twin_did"),
+                original_twin_did=drone_twin_did,
+            )
 
     def wait_for_new_locations(iotics_api: IoticsApi, input_listener):
         """Receive Input data and take action
@@ -308,16 +354,9 @@ def main():
 
         for latest_input_data in input_listener:
             data_received = json.loads(latest_input_data.payload.message.data)
-            new_latitude = data_received.get(constant.HQ_NEW_LAT_INPUT_LABEL)
-            new_longitude = data_received.get(constant.HQ_NEW_LON_INPUT_LABEL)
             drone_twin_did = data_received.get(constant.HQ_DRONE_DID_INPUT_LABEL)
 
-            logging.info(
-                "Received new location from Drone Twin %s: (%f, %f)",
-                drone_twin_did,
-                new_latitude,
-                new_longitude,
-            )
+            logging.info("New location from Drone Twin %s", drone_twin_did)
 
             take_action(iotics_api=iotics_api, drone_twin_did=drone_twin_did)
 
