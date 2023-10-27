@@ -12,10 +12,10 @@ from helpers.utilities import auto_refresh_token, get_host_endpoints
 
 HOST_URL = "https://demo.dev.iotics.space"
 
-USER_KEY_NAME = ""
-USER_SEED = ""
-AGENT_KEY_NAME = ""
-AGENT_SEED = ""
+USER_KEY_NAME = "#user-00"
+USER_SEED = "a0ca13864897524a37cb6bb419486b34da797dac4f8aa60a60f6097fca53abbc"
+AGENT_KEY_NAME = "#agent-00"
+AGENT_SEED = "a0ca13864897524a37cb6bb419486b34da797dac4f8aa60a60f6097fca53abbc"
 
 logging.basicConfig(
     level=logging.INFO,

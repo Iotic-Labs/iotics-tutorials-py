@@ -33,6 +33,7 @@ def auto_refresh_token(
 
     while True:
         start_processing_time = time()
+        logging.info("Auto refresh token started")
 
         new_token: str = identity.generate_new_token()
         logging.info(
@@ -45,7 +46,9 @@ def auto_refresh_token(
 
         event.set()
 
-        sleep(token_period - (time() - start_processing_time))
+        sleep_period = token_period - (time() - start_processing_time)
+        logging.info("Auto refresh token - sleeping for %ss", (sleep_period))
+        sleep(sleep_period)
 
 
 def get_host_endpoints(host_url: str) -> dict:
