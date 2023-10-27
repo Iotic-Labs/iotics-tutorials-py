@@ -102,7 +102,6 @@ class RestClient:
     def send_input_message(
         self,
         sender_twin_did: str,
-        receiver_twin_host_id: str,
         receiver_twin_id: str,
         input_id: str,
         input_msg: dict,
@@ -117,10 +116,11 @@ class RestClient:
             headers=self._headers,
             endpoint=constant.SEND_INPUT_MESSAGE.url.format(
                 host=self._host_url,
-                host_id=receiver_twin_host_id,
                 twin_sender_id=sender_twin_did,
                 twin_receiver_id=receiver_twin_id,
                 input_id=input_id,
             ),
             payload=message_to_send,
         )
+
+        logging.info("Sent Input message %s", input_msg)

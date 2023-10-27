@@ -72,10 +72,6 @@ class Identity(AuthInterface):
     def token_duration(self) -> int:
         return int(self._token_duration)
 
-    def set_token_duration(self, duration: int):
-        self._token_duration = duration
-        logging.info("Token duration set to %d seconds", duration)
-
     def get_host(self) -> str:
         return self._grpc_endpoint
 

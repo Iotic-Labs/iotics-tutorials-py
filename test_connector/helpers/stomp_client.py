@@ -6,7 +6,7 @@ from time import sleep
 from typing import Callable
 
 import stomp
-from iotic.web.stomp.client import StompConnectionTimeout, StompWSConnection12
+from iotic.web.stomp.client import StompWSConnection12
 
 logging.getLogger("stomp.py").setLevel(level=logging.ERROR)
 logging.basicConfig(
@@ -62,8 +62,8 @@ class StompClient:
 
         try:
             self._stomp_connection.connect(wait=True, passcode=self._token)
-        except (stomp.exception.NotConnectedException, StompConnectionTimeout) as ex:
-            logging.exception(
+        except Exception as ex:
+            logging.info(
                 "An exception is raised in 'stomp_connection.connect': %s", ex
             )
             self._disconnect_handler()
