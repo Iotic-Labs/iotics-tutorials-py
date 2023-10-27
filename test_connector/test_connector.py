@@ -12,14 +12,14 @@ from helpers.utilities import auto_refresh_token, get_host_endpoints
 
 HOST_URL = "https://demo.dev.iotics.space"
 
-USER_KEY_NAME = ""
-USER_SEED = ""
-AGENT_KEY_NAME = ""
-AGENT_SEED = ""
+USER_KEY_NAME = "00"
+USER_SEED = "a7631ed56882044021224d06c8deb966afb6a5db2115c805900b02c35b8188ce"
+AGENT_KEY_NAME = "00"
+AGENT_SEED = "e8da559d6197e3160d48c901db985e1b32984c7c72c2613a5e1cf7692e6e6e48"
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s %(message)s",
+    format="%(asctime)s - %(message)s",
     handlers=[logging.StreamHandler(stream=sys.stdout)],
 )
 
@@ -47,7 +47,7 @@ class TestConnector:
             user_seed=USER_SEED,
             agent_key_name=AGENT_KEY_NAME,
             agent_seed=AGENT_SEED,
-            token_duration=15,
+            token_duration=5,
         )
         self._rest_client = RestClient(host_url=HOST_URL)
         self._stomp_client_feed = StompClient(
@@ -119,13 +119,12 @@ class TestConnector:
 
     def _test_1(self):
         self._subscribe_to_feed()
-        logging.info("--- STEP 1 ---")
-        self._share_data()
+        # logging.info("--- STEP 1 ---")
+        # self._share_data()
+        # logging.info("--- STEP 2 ---")
+        # self._share_data(token_duration=10)
         logging.info("--- STEP 3 ---")
-        self._share_data(token_duration=10)
-        logging.info("--- STEP 4 ---")
         self._share_data(token_duration=5)
-        sleep(5)
 
     def clear_space(self):
         self._rest_client.delete_twin(twin_did=self._twin_1_did)
@@ -133,8 +132,8 @@ class TestConnector:
 
     def _share_data(self, token_duration: int = None):
         count = 0
-        if token_duration:
-            self._identity.set_token_duration(duration=token_duration)
+        # if token_duration:
+        #     self._identity.set_token_duration(duration=token_duration)
 
         while count < 30:
             try:
@@ -148,6 +147,8 @@ class TestConnector:
             else:
                 count += 1
                 sleep(1)
+        
+        sleep(3)
 
     def run(self):
         self._create_twins()

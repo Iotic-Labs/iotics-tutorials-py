@@ -9,6 +9,11 @@ import stomp
 from iotic.web.stomp.client import StompConnectionTimeout, StompWSConnection12
 
 logging.getLogger("stomp.py").setLevel(level=logging.ERROR)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(message)s",
+    handlers=[logging.StreamHandler(stream=sys.stdout)],
+)
 
 
 class StompClient:
@@ -34,7 +39,7 @@ class StompClient:
 
     def _setup(self):
         if self._reconnection_attempt > 3:
-            logging.error("Number of connection retries exceeded")
+            logging.info("Number of connection retries exceeded")
             sys.exit(0)
 
         try:
@@ -42,9 +47,9 @@ class StompClient:
                 f"{self._client_app_id}_stomp_listener"
             )
         except KeyError:
-            logging.debug("No listener connected (yet)")
+            logging.info("No listener connected (yet)")
         else:
-            logging.debug("Disconnected from listener")
+            logging.info("Listener removed")
             self._stomp_connection.disconnect()
             sleep(self._sleep_time)
 
@@ -63,12 +68,15 @@ class StompClient:
             )
             self._disconnect_handler()
         else:
+            logging.info("STOMP connected")
             self._initialise_vars()
 
         for topic, subscription_id in self._subscriptions.items():
             self._stomp_connection.subscribe(
                 destination=topic, id=subscription_id, headers=self._headers
             )
+
+        logging.info("STOMP subscribed")
 
     def new_token(self, token: str):
         self._token = token
@@ -79,7 +87,7 @@ class StompClient:
         self._sleep_time = 0.25
 
     def _disconnect_handler(self):
-        logging.warning("Attempting reconnection...")
+        logging.info("Attempting reconnection...")
         self._reconnection_attempt += 1
         self._sleep_time += 0.25
         self._setup()
@@ -98,7 +106,7 @@ class StompListener(stomp.ConnectionListener):
         self._disconnect_handler: Callable = disconnect_handler
 
     def on_connected(self, headers, body):
-        logging.debug("STOMP Listener connected")
+        logging.info("STOMP Listener connected")
 
     def on_error(self, headers, body):
         error_msg = json.loads(body)
@@ -109,4 +117,4 @@ class StompListener(stomp.ConnectionListener):
         self._callback(headers, body)
 
     def on_disconnected(self):
-        logging.debug("STOMP Listener disconnected")
+        logging.info("STOMP Listener disconnected")
