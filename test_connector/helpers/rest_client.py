@@ -2,7 +2,8 @@ import base64
 import json
 import logging
 import os
-import sys
+from threading import Lock
+from time import sleep
 import uuid
 from typing import List, Optional
 
@@ -13,7 +14,7 @@ from requests_ntlm2 import HttpNtlmAdapter, HttpNtlmAuth, NtlmCompatibility
 
 
 class RestClient:
-    def __init__(self, host_url: str, proxy: bool = True):
+    def __init__(self, host_url: str, lock: Lock, proxy: bool = True):
         self._host_url: str = host_url
         self._headers: dict = {
             "accept": "application/json",
@@ -21,6 +22,7 @@ class RestClient:
             "Iotics-ClientAppId": uuid.uuid4().hex,
         }
         self._request: requests.Session = None
+        self._lock: Lock = lock
         if proxy:
             session = self._get_session(
                 user_name=constant.USER_NAME_ACCESS,
@@ -82,39 +84,41 @@ class RestClient:
         endpoint: str,
         headers: Optional[dict] = None,
         payload: Optional[dict] = None,
-        retry: bool = True,
-    ) -> dict:
-        response: dict = {}
+    ) -> (dict, bool):
+        response: dict = None
+        error_flag: bool = True
+        retry_attempt: int = 0
+        sleep_time = 0.25
 
-        try:
-            if self._request:
-                req_resp: Response = self._request(
-                    method=method, url=endpoint, headers=headers, json=payload
-                )
-            else:
-                req_resp: Response = request(
-                    method=method, url=endpoint, headers=headers, json=payload
-                )
-            req_resp.raise_for_status()
-            response = req_resp.json()
-        except Exception as ex:
-            logging.error("Getting error %s", ex)
-            if retry:
-                self._make_api_call(
-                    method=method,
-                    endpoint=endpoint,
-                    headers=headers,
-                    payload=payload,
-                    retry=False,
-                )
-                logging.info("Retrying...")
-            else:
-                sys.exit(1)
+        while retry_attempt < 3:
+            with self._lock:
+                try:
+                    if self._request:
+                        req_resp: Response = self._request(
+                            method=method, url=endpoint, headers=headers, json=payload
+                        )
+                    else:
+                        req_resp: Response = request(
+                            method=method, url=endpoint, headers=headers, json=payload
+                        )
+                    req_resp.raise_for_status()
+                    response = req_resp.json()
+                except Exception as ex:
+                    logging.error("Getting error %s", ex)
+                    sleep_time += 0.25
+                    retry_attempt += 1
+                    logging.debug("Retrying rest operation")
+                else:
+                    error_flag = False
+                    break
 
-        return response
+            sleep(sleep_time)
+
+        return response, error_flag
 
     def new_token(self, token: str):
-        self._headers.update({"Authorization": f"Bearer {token}"})
+        with self._lock:
+            self._headers.update({"Authorization": f"Bearer {token}"})
 
     def upsert_twin(
         self,
@@ -123,7 +127,7 @@ class RestClient:
         feeds: Optional[List[dict]] = None,
         inputs: Optional[List[dict]] = None,
         location: Optional[dict] = None,
-    ):
+    ) -> dict:
         payload: dict = {"twinId": {"id": twin_did}}
 
         if location:
@@ -135,17 +139,20 @@ class RestClient:
         if properties:
             payload["properties"] = properties
 
-        self._make_api_call(
+        response, error_flag = self._make_api_call(
             method=constant.UPSERT_TWIN.method,
             headers=self._headers,
             endpoint=constant.UPSERT_TWIN.url.format(host=self._host_url),
             payload=payload,
         )
 
-        logging.info("Twin %s created", twin_did)
+        if not error_flag:
+            logging.info("Twin %s created", twin_did)
 
-    def delete_twin(self, twin_did: str):
-        self._make_api_call(
+        return response
+
+    def delete_twin(self, twin_did: str) -> dict:
+        response, error_flag = self._make_api_call(
             method=constant.DELETE_TWIN.method,
             headers=self._headers,
             endpoint=constant.DELETE_TWIN.url.format(
@@ -153,7 +160,14 @@ class RestClient:
             ),
         )
 
-    def share_data(self, publisher_twin_did: str, feed_id: str, data_to_share: dict):
+        if not error_flag:
+            logging.info("Twin %s deleted", twin_did)
+
+        return response
+
+    def share_data(
+        self, publisher_twin_did: str, feed_id: str, data_to_share: dict
+    ) -> dict:
         encoded_data: str = base64.b64encode(
             json.dumps(data_to_share).encode()
         ).decode()
@@ -161,7 +175,7 @@ class RestClient:
             "sample": {"data": encoded_data, "mime": "application/json"}
         }
 
-        self._make_api_call(
+        response, error_flag = self._make_api_call(
             method=constant.SHARE_DATA.method,
             headers=self._headers,
             endpoint=constant.SHARE_DATA.url.format(
@@ -170,7 +184,10 @@ class RestClient:
             payload=data_to_share_payload,
         )
 
-        logging.info("Shared Feed data %s", data_to_share)
+        if not error_flag:
+            logging.info("Shared Feed data %s", data_to_share)
+
+        return response
 
     def send_input_message(
         self,
@@ -178,13 +195,13 @@ class RestClient:
         receiver_twin_id: str,
         input_id: str,
         input_msg: dict,
-    ):
+    ) -> dict:
         encoded_data: str = base64.b64encode(json.dumps(input_msg).encode()).decode()
         message_to_send: dict = {
             "message": {"data": encoded_data, "mime": "application/json"}
         }
 
-        self._make_api_call(
+        response, error_flag = self._make_api_call(
             method=constant.SEND_INPUT_MESSAGE.method,
             headers=self._headers,
             endpoint=constant.SEND_INPUT_MESSAGE.url.format(
@@ -196,4 +213,7 @@ class RestClient:
             payload=message_to_send,
         )
 
-        logging.info("Sent Input message %s", input_msg)
+        if not error_flag:
+            logging.info("Sent Input message %s", input_msg)
+
+        return response

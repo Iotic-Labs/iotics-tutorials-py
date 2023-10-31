@@ -37,19 +37,23 @@ class TestConnector:
             user_seed=constant.USER_SEED,
             agent_key_name=constant.AGENT_KEY_NAME,
             agent_seed=constant.AGENT_SEED,
-            token_duration=1,
+            token_duration=3,
         )
         self._lock = Lock()
-        self._rest_client = RestClient(host_url=constant.HOST_URL, proxy=False)
+        self._rest_client = RestClient(
+            host_url=constant.HOST_URL, lock=self._lock, proxy=False
+        )
         self._stomp_client_feed = StompClient(
             stomp_endpoint=constant.STOMP_URL,
             callback=self._follow_feed_callback,
             name="STOMP Client Feed",
+            lock=self._lock,
         )
         self._stomp_client_input = StompClient(
             stomp_endpoint=constant.STOMP_URL,
             callback=self._receive_input_callback,
             name="STOMP Client Input",
+            lock=self._lock,
         )
 
         event = Event()
@@ -59,7 +63,6 @@ class TestConnector:
                 self._identity,
                 event,
                 self._rest_client,
-                self._lock,
                 [self._stomp_client_feed, self._stomp_client_input],
             ),
             daemon=True,
@@ -95,22 +98,20 @@ class TestConnector:
     def _subscribe_to_feed(self):
         subscribe_to_feed_endpoint: str = f"/qapi/twins/{self._twin_2_did}/interests/twins/{self._twin_1_did}/feeds/{constant.FEED_ID}"
 
-        with self._lock:
-            self._stomp_client_feed.subscribe(
-                topic=subscribe_to_feed_endpoint,
-                subscription_id=f"{self._twin_1_did}-{constant.FEED_ID}",
-            )
+        self._stomp_client_feed.subscribe(
+            topic=subscribe_to_feed_endpoint,
+            subscription_id=f"{self._twin_1_did}-{constant.FEED_ID}",
+        )
 
     def _subscribe_to_input(self):
         subscribe_to_input_endpoint: str = (
             f"/qapi/twins/{self._twin_1_did}/inputs/{constant.INPUT_ID}"
         )
 
-        with self._lock:
-            self._stomp_client_input.subscribe(
-                topic=subscribe_to_input_endpoint,
-                subscription_id=f"{self._twin_1_did}-{constant.INPUT_ID}",
-            )
+        self._stomp_client_input.subscribe(
+            topic=subscribe_to_input_endpoint,
+            subscription_id=f"{self._twin_1_did}-{constant.INPUT_ID}",
+        )
 
     def _create_twins(self):
         # Create Twin 1 with 1 Feed and 1 Input
@@ -118,34 +119,28 @@ class TestConnector:
             twin_key_name="twin_1"
         )
         self._twin_1_did = twin_1_registered_identity.did
-        with self._lock:
-            self._rest_client.upsert_twin(
-                twin_did=self._twin_1_did,
-                feeds=[
-                    {
-                        "id": constant.FEED_ID,
-                        "values": [
-                            {"dataType": "integer", "label": constant.FEED_LABEL}
-                        ],
-                    },
-                ],
-                inputs=[
-                    {
-                        "id": constant.INPUT_ID,
-                        "values": [
-                            {"dataType": "integer", "label": constant.INPUT_LABEL}
-                        ],
-                    },
-                ],
-            )
+        self._rest_client.upsert_twin(
+            twin_did=self._twin_1_did,
+            feeds=[
+                {
+                    "id": constant.FEED_ID,
+                    "values": [{"dataType": "integer", "label": constant.FEED_LABEL}],
+                },
+            ],
+            inputs=[
+                {
+                    "id": constant.INPUT_ID,
+                    "values": [{"dataType": "integer", "label": constant.INPUT_LABEL}],
+                },
+            ],
+        )
 
         # Create Twin 2
         twin_2_registered_identity = self._identity.create_twin_with_control_delegation(
             twin_key_name="twin_2"
         )
         self._twin_2_did = twin_2_registered_identity.did
-        with self._lock:
-            self._rest_client.upsert_twin(twin_did=self._twin_2_did)
+        self._rest_client.upsert_twin(twin_did=self._twin_2_did)
 
     def _test_1(self):
         self._subscribe_to_feed()
@@ -159,24 +154,21 @@ class TestConnector:
 
     def clear_space(self):
         subscribe_to_feed_endpoint: str = f"/qapi/twins/{self._twin_2_did}/interests/twins/{self._twin_1_did}/feeds/{constant.FEED_ID}"
-        with self._lock:
-            self._stomp_client_feed.unsubscribe(
-                topic=subscribe_to_feed_endpoint,
-                subscription_id=f"{self._twin_1_did}-{constant.FEED_ID}",
-            )
+        self._stomp_client_feed.unsubscribe(
+            topic=subscribe_to_feed_endpoint,
+            subscription_id=f"{self._twin_1_did}-{constant.FEED_ID}",
+        )
 
         subscribe_to_input_endpoint: str = (
             f"/qapi/twins/{self._twin_1_did}/inputs/{constant.INPUT_ID}"
         )
-        with self._lock:
-            self._stomp_client_input.unsubscribe(
-                topic=subscribe_to_input_endpoint,
-                subscription_id=f"{self._twin_1_did}-{constant.INPUT_ID}",
-            )
+        self._stomp_client_input.unsubscribe(
+            topic=subscribe_to_input_endpoint,
+            subscription_id=f"{self._twin_1_did}-{constant.INPUT_ID}",
+        )
 
-        with self._lock:
-            self._rest_client.delete_twin(twin_did=self._twin_1_did)
-            self._rest_client.delete_twin(twin_did=self._twin_2_did)
+        self._rest_client.delete_twin(twin_did=self._twin_1_did)
+        self._rest_client.delete_twin(twin_did=self._twin_2_did)
 
         logging.info("Twins deleted")
 
@@ -185,35 +177,32 @@ class TestConnector:
 
         while count < 10:
             try:
-                with self._lock:
-                    self._rest_client.share_data(
-                        publisher_twin_did=self._twin_1_did,
-                        feed_id=constant.FEED_ID,
-                        data_to_share={constant.FEED_LABEL: count},
-                    )
-            except KeyboardInterrupt:
-                break
-            else:
+                self._rest_client.share_data(
+                    publisher_twin_did=self._twin_1_did,
+                    feed_id=constant.FEED_ID,
+                    data_to_share={constant.FEED_LABEL: count},
+                )
+
                 count += 1
                 sleep(1)
+            except KeyboardInterrupt:
+                break
 
     def _send_input_msg(self):
         count = 0
 
         while count < 10:
             try:
-                with self._lock:
-                    self._rest_client.send_input_message(
-                        sender_twin_did=self._twin_2_did,
-                        receiver_twin_id=self._twin_1_did,
-                        input_id=constant.INPUT_ID,
-                        input_msg={constant.INPUT_LABEL: count},
-                    )
-            except KeyboardInterrupt:
-                break
-            else:
+                self._rest_client.send_input_message(
+                    sender_twin_did=self._twin_2_did,
+                    receiver_twin_id=self._twin_1_did,
+                    input_id=constant.INPUT_ID,
+                    input_msg={constant.INPUT_LABEL: count},
+                )
                 count += 1
                 sleep(1)
+            except KeyboardInterrupt:
+                break
 
     def run(self):
         self._create_twins()

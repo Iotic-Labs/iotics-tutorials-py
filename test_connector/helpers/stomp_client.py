@@ -1,6 +1,7 @@
 import json
 import logging
 import sys
+from threading import Lock
 import uuid
 from time import sleep
 from typing import Callable
@@ -18,7 +19,7 @@ logging.basicConfig(
 
 
 class StompClient:
-    def __init__(self, stomp_endpoint: str, callback: Callable, name: str):
+    def __init__(self, stomp_endpoint: str, callback: Callable, name: str, lock: Lock):
         self._stomp_endpoint: str = stomp_endpoint
         self._callback: Callable = callback
         self._token: str = None
@@ -28,6 +29,7 @@ class StompClient:
         self._sleep_time: float = None
         self._reconnection_attempt: int = None
         self._name = name
+        self._lock: Lock = lock
 
         self._initialise()
 
@@ -83,8 +85,9 @@ class StompClient:
             self._initialise_vars()
 
     def new_token(self, token: str):
-        self._token = token
-        self._setup()
+        with self._lock:
+            self._token = token
+            self._setup()
 
     def _initialise_vars(self):
         self._reconnection_attempt = 0
@@ -97,25 +100,29 @@ class StompClient:
         self._setup()
 
     def subscribe(self, topic: str, subscription_id: str):
-        self._subscriptions.update({topic: subscription_id})
-        try:
-            self._stomp_connection.subscribe(
-                destination=topic, id=subscription_id, headers=self._headers
-            )
-        except NotConnectedException:
-            logging.debug("%s - STOMP NotConnectedException is raised", self._name)
-            self._disconnect_handler()
-
-    def unsubscribe(self, topic: str, subscription_id: str):
-        try:
-            self._subscriptions.pop(topic)
-        except KeyError:
-            logging.debug("%s - No subscription called %s", self._name, topic)
-        else:
+        with self._lock:
+            self._subscriptions.update({topic: subscription_id})
             try:
-                self._stomp_connection.unsubscribe(id=subscription_id)
+                self._stomp_connection.subscribe(
+                    destination=topic, id=subscription_id, headers=self._headers
+                )
             except NotConnectedException:
                 logging.debug("%s - STOMP NotConnectedException is raised", self._name)
+                self._disconnect_handler()
+
+    def unsubscribe(self, topic: str, subscription_id: str):
+        with self._lock:
+            try:
+                self._subscriptions.pop(topic)
+            except KeyError:
+                logging.debug("%s - No subscription called %s", self._name, topic)
+            else:
+                try:
+                    self._stomp_connection.unsubscribe(id=subscription_id)
+                except NotConnectedException:
+                    logging.debug(
+                        "%s - STOMP NotConnectedException is raised", self._name
+                    )
 
 
 class StompListener(stomp.ConnectionListener):
