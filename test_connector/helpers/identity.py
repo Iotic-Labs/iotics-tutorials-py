@@ -3,7 +3,6 @@ import sys
 from datetime import datetime, timedelta
 from typing import Optional
 
-from iotics.lib.grpc.auth import AuthInterface
 from iotics.lib.identity.api.high_level_api import (
     HighLevelIdentityApi,
     RegisteredIdentity,
@@ -11,18 +10,16 @@ from iotics.lib.identity.api.high_level_api import (
 )
 
 
-class Identity(AuthInterface):
+class Identity:
     def __init__(
         self,
         resolver_url: str,
-        grpc_endpoint: str,
         user_key_name: str,
         user_seed: str,
         agent_key_name: str,
         agent_seed: str,
-        token_duration: int = 30,
+        token_duration: int,
     ):
-        self._grpc_endpoint: str = grpc_endpoint
         self._user_key_name: str = user_key_name
         self._user_seed: bytes = bytes.fromhex(user_seed)
         self._agent_key_name: str = agent_key_name
@@ -71,9 +68,6 @@ class Identity(AuthInterface):
     @property
     def token_duration(self) -> int:
         return int(self._token_duration)
-
-    def get_host(self) -> str:
-        return self._grpc_endpoint
 
     def generate_new_token(self) -> str:
         token: str = self._high_level_identity_api.create_agent_auth_token(

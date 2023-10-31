@@ -1,42 +1,115 @@
 import base64
 import json
 import logging
+import os
 import sys
 import uuid
 from typing import List, Optional
 
-from requests import Response, request
-
 import helpers.constants as constant
+import requests
+from requests import Response, request
+from requests_ntlm2 import HttpNtlmAdapter, HttpNtlmAuth, NtlmCompatibility
 
 
 class RestClient:
-    def __init__(self, host_url: str):
+    def __init__(self, host_url: str, proxy: bool = True):
         self._host_url: str = host_url
         self._headers: dict = {
             "accept": "application/json",
             "Content-Type": "application/json",
             "Iotics-ClientAppId": uuid.uuid4().hex,
         }
+        self._request: requests.Session = None
+        if proxy:
+            session = self._get_session(
+                user_name=constant.USER_NAME_ACCESS,
+                user_pass=constant.USER_PASS_ACCESS,
+                proxy_http=constant.HTTP_PROXY,
+                proxy_https=constant.HTTPS_PROXY,
+            )
+            self._request: requests.Session = session.request
 
     @staticmethod
+    def _get_session(
+        user_name: str,
+        user_pass: str,
+        proxy_http: str,
+        proxy_https: str,
+    ) -> requests.Session:
+        """Create a Request Session to go through Proxies
+
+        Args:
+            user_name (str): Username for proxy - Windows username
+            user_pass (str): Password for Proxy - Windows password
+            proxy_http (str): HTTP of proxy
+            proxy_https (str): HTTPS of proxy
+
+        Returns:
+            requests.Session: Request Session with mounted authorisation
+                credentials in NTLM (Windows credentials)
+        """
+        ntlm_compatibility = NtlmCompatibility.NTLMv2_DEFAULT
+        created_session = requests.Session()
+
+        # Mount adapter for "http://"
+        nltp_adapter = HttpNtlmAdapter(
+            user_name, user_pass, ntlm_compatibility=ntlm_compatibility
+        )
+        created_session.mount("http://", nltp_adapter)
+
+        # Mount adapter for "https://"
+        nltp_adapter_https = HttpNtlmAdapter(
+            user_name, user_pass, ntlm_compatibility=ntlm_compatibility
+        )
+        created_session.mount("https://", nltp_adapter_https)
+
+        created_session.auth = HttpNtlmAuth(
+            user_name, user_pass, ntlm_compatibility=ntlm_compatibility
+        )
+        created_session.proxies = {
+            "http": proxy_http,
+            "https": proxy_https,
+        }
+
+        created_session.verify = os.environ.get("REQUESTS_CA_BUNDLE")
+
+        return created_session
+
     def _make_api_call(
+        self,
         method: str,
         endpoint: str,
         headers: Optional[dict] = None,
         payload: Optional[dict] = None,
+        retry: bool = True,
     ) -> dict:
         response: dict = {}
 
         try:
-            req_resp: Response = request(
-                method=method, url=endpoint, headers=headers, json=payload
-            )
+            if self._request:
+                req_resp: Response = self._request(
+                    method=method, url=endpoint, headers=headers, json=payload
+                )
+            else:
+                req_resp: Response = request(
+                    method=method, url=endpoint, headers=headers, json=payload
+                )
             req_resp.raise_for_status()
             response = req_resp.json()
         except Exception as ex:
             logging.error("Getting error %s", ex)
-            sys.exit(1)
+            if retry:
+                self._make_api_call(
+                    method=method,
+                    endpoint=endpoint,
+                    headers=headers,
+                    payload=payload,
+                    retry=False,
+                )
+                logging.info("Retrying...")
+            else:
+                sys.exit(1)
 
         return response
 

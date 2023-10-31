@@ -7,6 +7,7 @@ from typing import Callable
 
 import stomp
 from iotic.web.stomp.client import StompWSConnection12
+from stomp.exception import NotConnectedException
 
 logging.getLogger("stomp.py").setLevel(level=logging.ERROR)
 logging.basicConfig(
@@ -17,7 +18,7 @@ logging.basicConfig(
 
 
 class StompClient:
-    def __init__(self, stomp_endpoint: str, callback: Callable):
+    def __init__(self, stomp_endpoint: str, callback: Callable, name: str):
         self._stomp_endpoint: str = stomp_endpoint
         self._callback: Callable = callback
         self._token: str = None
@@ -26,6 +27,7 @@ class StompClient:
         self._subscriptions: dict = {}
         self._sleep_time: float = None
         self._reconnection_attempt: int = None
+        self._name = name
 
         self._initialise()
 
@@ -39,7 +41,7 @@ class StompClient:
 
     def _setup(self):
         if self._reconnection_attempt > 3:
-            logging.info("Number of connection retries exceeded")
+            logging.debug("%s - Number of connection retries exceeded", self._name)
             sys.exit(0)
 
         try:
@@ -47,36 +49,38 @@ class StompClient:
                 f"{self._client_app_id}_stomp_listener"
             )
         except KeyError:
-            logging.info("No listener connected (yet)")
+            logging.debug("%s - No listener connected (yet)", self._name)
         else:
-            logging.info("Listener removed")
+            logging.debug("%s - Listener removed", self._name)
             self._stomp_connection.disconnect()
+
+        while self._stomp_connection.is_connected():
+            logging.debug("%s - STOMP Client still connected", self._name)
             sleep(self._sleep_time)
 
-        self._stomp_connection.set_listener(
-            name=f"{self._client_app_id}_stomp_listener",
-            lstnr=StompListener(
-                callback=self._callback, disconnect_handler=self._disconnect_handler
-            ),
-        )
-
         try:
-            self._stomp_connection.connect(wait=True, passcode=self._token)
-        except Exception as ex:
-            logging.info(
-                "An exception is raised in 'stomp_connection.connect': %s", ex
+            self._stomp_connection.set_listener(
+                name=f"{self._client_app_id}_stomp_listener",
+                lstnr=StompListener(callback=self._callback, name=self._name),
             )
+
+            self._stomp_connection.connect(wait=True, passcode=self._token)
+            logging.debug("%s - STOMP connected", self._name)
+
+            while not self._stomp_connection.is_connected():
+                logging.debug("%s - STOMP Client still NOT connected", self._name)
+                sleep(self._sleep_time)
+
+            for topic, subscription_id in self._subscriptions.items():
+                self._stomp_connection.subscribe(
+                    destination=topic, id=subscription_id, headers=self._headers
+                )
+            logging.debug("%s - STOMP subscribed", self._name)
+        except Exception as ex:
+            logging.debug("%s - An exception is raised: %s", self._name, ex)
             self._disconnect_handler()
         else:
-            logging.info("STOMP connected")
             self._initialise_vars()
-
-        for topic, subscription_id in self._subscriptions.items():
-            self._stomp_connection.subscribe(
-                destination=topic, id=subscription_id, headers=self._headers
-            )
-
-        logging.info("STOMP subscribed")
 
     def new_token(self, token: str):
         self._token = token
@@ -87,34 +91,51 @@ class StompClient:
         self._sleep_time = 0.25
 
     def _disconnect_handler(self):
-        logging.info("Attempting reconnection...")
+        logging.debug("%s - Attempting reconnection...", self._name)
         self._reconnection_attempt += 1
-        self._sleep_time += 0.25
+        self._sleep_time += 1
         self._setup()
 
     def subscribe(self, topic: str, subscription_id: str):
-        self._stomp_connection.subscribe(
-            destination=topic, id=subscription_id, headers=self._headers
-        )
-
         self._subscriptions.update({topic: subscription_id})
+        try:
+            self._stomp_connection.subscribe(
+                destination=topic, id=subscription_id, headers=self._headers
+            )
+        except NotConnectedException:
+            logging.debug("%s - STOMP NotConnectedException is raised", self._name)
+            self._disconnect_handler()
+
+    def unsubscribe(self, topic: str, subscription_id: str):
+        try:
+            self._subscriptions.pop(topic)
+        except KeyError:
+            logging.debug("%s - No subscription called %s", self._name, topic)
+        else:
+            try:
+                self._stomp_connection.unsubscribe(id=subscription_id)
+            except NotConnectedException:
+                logging.debug("%s - STOMP NotConnectedException is raised", self._name)
 
 
 class StompListener(stomp.ConnectionListener):
-    def __init__(self, callback: Callable, disconnect_handler: Callable):
+    def __init__(self, callback: Callable, name: str):
         self._callback: Callable = callback
-        self._disconnect_handler: Callable = disconnect_handler
+        self._name = name
 
     def on_connected(self, headers, body):
-        logging.info("STOMP Listener connected")
+        logging.debug("%s - STOMP Listener connected", self._name)
 
     def on_error(self, headers, body):
-        error_msg = json.loads(body)
-        logging.error("STOMP Listener error %s", error_msg)
-        self._disconnect_handler()
+        try:
+            error_msg = json.loads(body)
+        except json.decoder.JSONDecodeError:
+            logging.debug("%s - STOMP Listener error %s", self._name, body)
+        else:
+            logging.debug("%s - STOMP Listener error %s", self._name, error_msg)
 
     def on_message(self, headers, body):
         self._callback(headers, body)
 
     def on_disconnected(self):
-        logging.info("STOMP Listener disconnected")
+        logging.debug("%s - STOMP Listener disconnected", self._name)
