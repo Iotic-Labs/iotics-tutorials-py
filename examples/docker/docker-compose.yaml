@@ -4,12 +4,12 @@ version: "3.9"
 name: "iotics-connector-example"
 
 services:
-  # HQ Connector
-  hq:
-    container_name: "hq"
+  # Airline Connector
+  airline:
+    container_name: "airline"
     build:
       context: ".."
-      dockerfile: "iotics-connector-example-hq/Dockerfile"
+      dockerfile: "iotics-connector-example-airline/Dockerfile"
     command: "python3 /home/iotics/app/main.py"
     env_file:
       - ".env"
