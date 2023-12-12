@@ -4,12 +4,23 @@ version: "3.9"
 name: "iotics-connector-example"
 
 services:
-  # Airline Connector
-  airline:
-    container_name: "airline"
+  # # Airline Connector
+  # airline:
+  #   container_name: "airline"
+  #   build:
+  #     context: ".."
+  #     dockerfile: "iotics-connector-example-airline/Dockerfile"
+  #   command: "python3 /home/iotics/app/main.py"
+  #   env_file:
+  #     - ".env"
+  #   networks: ["connector-example"]
+  
+  # Flight Connector
+  flight:
+    container_name: "flight"
     build:
       context: ".."
-      dockerfile: "iotics-connector-example-airline/Dockerfile"
+      dockerfile: "iotics-connector-example-flight/Dockerfile"
     command: "python3 /home/iotics/app/main.py"
     env_file:
       - ".env"
