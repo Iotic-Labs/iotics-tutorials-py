@@ -2,13 +2,13 @@ import json
 import logging
 import os
 import sys
-from threading import Thread
+from threading import Lock, Thread
 from time import sleep
 
 import constants as constant
 import grpc
 from identity import Identity
-from iotics.lib.grpc.helpers import create_property, create_location
+from iotics.lib.grpc.helpers import create_property
 from iotics.lib.grpc.iotics_api import IoticsApi
 from utilities import auto_refresh_token, get_host_endpoints
 
@@ -35,6 +35,7 @@ class AirlineConnector:
         self._iotics_identity: Identity = None
         self._airline_twin_did: str = None
         self._flight_shadow_dict: dict = None
+        self._refresh_token_lock: Lock = None
 
     def initialise(self):
         endpoints = get_host_endpoints(host_url=os.getenv("AIRLINE_HOST_URL"))
@@ -48,11 +49,13 @@ class AirlineConnector:
         )
         self._iotics_api = IoticsApi(auth=self._iotics_identity)
         self._flight_shadow_dict = {}
+        self._refresh_token_lock = Lock()
 
         # Auto-generate a new token when it expires
         Thread(
             target=auto_refresh_token,
-            args=[self._iotics_identity, self._iotics_api],
+            args=[self._refresh_token_lock, self._iotics_identity, self._iotics_api],
+            name="auto_refresh_token",
             daemon=True,
         ).start()
 
@@ -339,36 +342,3 @@ class AirlineConnector:
         airline_twin_model = self._search_airline_twin_model()
         self._create_airline_twin(airline_twin_model=airline_twin_model)
         self._search_flight_twins()
-
-
-class FlightShadow:
-    def __init__(self, iotics_identity: Identity, iotics_api: IoticsApi):
-        self._iotics_api: IoticsApi = iotics_identity
-        self._iotics_identity: Identity = iotics_api
-        self._shadow_twin_did: str = None
-        self._country: str = None
-
-    @property
-    def country(self) -> str:
-        return self._country
-
-    def update_twin(self, new_lat: float, new_lon: float):
-        # Update selective sharing permissions
-        updated_sharing_permissions = [
-            create_property(key=constant.HOST_ALLOW_LIST, value="host_id", is_uri=True),
-            create_property(
-                key=constant.HOST_METADATA_ALLOW_LIST, value="host_id", is_uri=True
-            ),
-        ]
-
-        self._iotics_api.update_twin(
-            twin_did=self._shadow_twin_did,
-            location=create_location(lat=new_lat, lon=new_lon),
-            props_added=updated_sharing_permissions,
-            props_keys_deleted=[
-                twin_prop.key for twin_prop in updated_sharing_permissions
-            ],
-        )
-
-    def delete_twin(self):
-        self._iotics_api.delete_twin(twin_did=self._shadow_twin_did)

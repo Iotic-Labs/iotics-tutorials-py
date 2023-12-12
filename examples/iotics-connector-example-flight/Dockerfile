@@ -4,11 +4,11 @@ ARG PYTHON_VERSION=3.10
 FROM python:${PYTHON_VERSION}-slim-bullseye as builder
 
 WORKDIR /app
-COPY iotics-connector-example-grpc /app/iotics-connector-example-grpc
+COPY iotics-connector-example-common /app/iotics-connector-example-common
 COPY iotics-connector-example-flight /app/iotics-connector-example-flight
 
 RUN pip install --no-cache-dir build~=0.9.0 && \
-    python3 -m build --wheel --outdir /app/dist/ iotics-connector-example-grpc && \
+    python3 -m build --wheel --outdir /app/dist/ iotics-connector-example-common && \
     python3 -m build --wheel --outdir /app/dist/ iotics-connector-example-flight
 
 # Runtime Stage
@@ -26,13 +26,11 @@ ENV PATH=${PATH}:/home/iotics/.local/bin
 # Copy from the builder stage
 COPY --from=builder /app/dist/iotics_connector_example*.whl \
     /app/iotics-connector-example-flight/src/iotics/connector/example/flight/* \
-    /app/iotics-connector-example-grpc/src/iotics/connector/example/grpc/* \
+    /app/iotics-connector-example-common/src/iotics/connector/example/common/* \
     /home/iotics/app/
 
 # Change ownership
-RUN chown -R iotics:iotics /home/iotics \
-    && chown iotics:iotics /home/iotics/app/*.whl
-
+RUN chown -R iotics:iotics /home/iotics
 USER iotics:iotics
 
 # Install application dependencies

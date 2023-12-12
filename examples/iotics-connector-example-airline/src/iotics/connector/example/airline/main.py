@@ -11,14 +11,14 @@ logging.basicConfig(
 
 
 def main():
-    airline_connector_micky_mouse = AirlineConnector(
-        airline_name="micky_mouse",
-        legal_name="Micky Mouse LTD",
+    airline_connector_1 = AirlineConnector(
+        airline_name="Airline ABC",
+        legal_name="Airline ABC LTD",
         airline_identifier="AL1",
         airline_hq_location="UK",
     )
-    airline_connector_micky_mouse.initialise()
-    airline_connector_micky_mouse.start()
+    airline_connector_1.initialise()
+    airline_connector_1.start()
 
 
 if __name__ == "__main__":

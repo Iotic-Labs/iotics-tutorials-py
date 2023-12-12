@@ -1,7 +1,7 @@
-from collections import namedtuple
-
 INDEX_JSON_PATH = "/index.json"
 TOKEN_REFRESH_PERIOD_PERCENT = 0.75
+ERROR_RETRY_SLEEP_TIME = 5
+RETRYING_ATTEMPTS = 3
 
 # TWIN PROPERTY KEYS
 LABEL = "http://www.w3.org/2000/01/rdf-schema#label"
@@ -31,6 +31,7 @@ AIRLINE_LEGAL_NAME = "https://schema.org/legalName"
 AIRLINE_IDENTIFIER = "https://schema.org/identifier"
 AIRLINE_LOCATION = "https://schema.org/location"
 AIRLINE_INPUT_LABEL = "flight_twin_did"
+AIRLINE_IDENTIFIERS = ["Airline A", "Airline B", "Airline C", "Airline D"]
 
 # FLIGHT TWIN
 FLIGHT_TWIN_MODEL_LABEL = "Flight Model"
@@ -45,11 +46,11 @@ FLIGHT_PROVIDER = "https://schema.org/provider"
 FLIGHT_FEED_ID = "location"
 FLIGHT_FEED_LABEL_LAT = "latitude"
 FLIGHT_FEED_LABEL_LON = "longitude"
-FLIGHT_COORDINATES = {
-    "Location A": {"lat": 12, "lon": 12},
-    "Location B": {"lat": 12, "lon": 12},
-    "Location C": {"lat": 12, "lon": 12},
-    "Location D": {"lat": 12, "lon": 12},
-    "Location E": {"lat": 12, "lon": 12},
-}
+AIRPORT_COORDINATES = [
+    {"name": "London Heathrow Airport", "coords": {"lat": 51.4694, "lon": -0.4503}},
+    {"name": "Manchester Airport", "coords": {"lat": 53.3651, "lon": -2.2722}},
+    {"name": "Charles de Gaulle Airport", "coords": {"lat": 49.0097, "lon": 2.5479}},
+    {"name": "Frankfurt Airport", "coords": {"lat": 50.0336, "lon": 8.5706}},
+    {"name": "Barcelona-El Prat Airport", "coords": {"lat": 41.2974, "lon": 2.0833}},
+]
 FLIGHT_SHARING_PERIOD_SEC = 5
