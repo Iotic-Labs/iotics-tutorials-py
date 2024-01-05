@@ -1,0 +1,1 @@
+-   update shadow twins sharing permissions according to the restricted_properties

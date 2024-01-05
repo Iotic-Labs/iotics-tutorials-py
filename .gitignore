@@ -7,3 +7,6 @@ __pycache__
 iotic.web.stomp*
 .mypy*
 .vscode
+./advanced_examples/docker/.env
+./advanced_examples/DynamicSharingPermissionExample
+./advanced_examples/todo.txt
