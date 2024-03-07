@@ -5,11 +5,11 @@ FROM python:${PYTHON_VERSION}-slim-bullseye as builder
 
 WORKDIR /app
 COPY iotics-connector-example-common /app/iotics-connector-example-common
-COPY iotics-connector-example-airline /app/iotics-connector-example-airline
+COPY iotics-connector-example-publisher /app/iotics-connector-example-publisher
 
 RUN pip install --no-cache-dir build~=0.9.0 && \
     python3 -m build --wheel --outdir /app/dist/ iotics-connector-example-common && \
-    python3 -m build --wheel --outdir /app/dist/ iotics-connector-example-airline
+    python3 -m build --wheel --outdir /app/dist/ iotics-connector-example-publisher
 
 # Runtime Stage
 FROM python:${PYTHON_VERSION}-slim-bullseye as runtime
@@ -25,7 +25,7 @@ ENV PATH=${PATH}:/home/iotics/.local/bin
 
 # Copy from the builder stage
 COPY --from=builder /app/dist/iotics_connector_example*.whl \
-    /app/iotics-connector-example-airline/src/iotics/connector/example/airline/* \
+    /app/iotics-connector-example-publisher/src/iotics/connector/example/publisher/* \
     /app/iotics-connector-example-common/src/iotics/connector/example/common/* \
     /home/iotics/app/
 

@@ -1,8 +1,7 @@
 import logging
 import sys
 from datetime import datetime, timedelta
-from threading import Thread
-from time import sleep, time
+from time import time
 from typing import Optional
 
 from iotics.lib.grpc.auth import AuthInterface

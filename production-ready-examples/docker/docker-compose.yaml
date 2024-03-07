@@ -1,0 +1,20 @@
+---
+version: "3.9"
+
+name: "iotics-connector-example"
+
+services:
+  # Publisher Connector
+  publisher:
+    container_name: "publisher"
+    build:
+      context: ".."
+      dockerfile: "iotics-connector-example-publisher/Dockerfile"
+    command: "python3 /home/iotics/app/main.py"
+    env_file:
+      - ".env"
+    networks: ["connector-example"]
+  
+networks:
+  connector-example:
+    name: "iotics-connector-example"

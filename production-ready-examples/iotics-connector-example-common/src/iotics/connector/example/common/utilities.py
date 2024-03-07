@@ -108,6 +108,9 @@ def search_twins(
             )
             sleep(constant.RETRY_SLEEP_TIME)
         else:
+            log.debug(
+                "Found %d Twins based on the search criteria", len(twins_found_list)
+            )
             break
 
     return twins_found_list
