@@ -53,29 +53,6 @@ def auto_refresh_token(
             iotics_api.update_channel()
 
 
-def is_token_expired(exception, operation: str) -> bool:
-    """Control the exception raised to check whether it is related to the token being expired.
-
-    Args:
-        exception (Exception): the exception raised.
-        operation (str): the operation which raised the exception.
-
-    Returns:
-        bool: True if the exception was caused by the token expired. False otherwise
-    """
-
-    if exception.code() != grpc.StatusCode.UNAUTHENTICATED:
-        log.error(
-            "Un unhandled gRPC exception is raised in '%s': %s",
-            operation,
-            exception,
-        )
-        return False
-
-    sleep(constant.RETRY_SLEEP_TIME)
-    return True
-
-
 def search_twins(
     search_criteria,
     refresh_token_lock: Lock,
@@ -85,32 +62,61 @@ def search_twins(
     twins_found_list = []
 
     while True:
-        try:
-            with refresh_token_lock:
-                for response in iotics_api.search_iter(
-                    client_app_id=uuid4().hex, payload=search_criteria, timeout=5
-                ):
-                    twins = response.payload.twins
-                    twins_found_list.extend(twins)
-        except grpc.RpcError as ex:
-            if not is_token_expired(exception=ex, operation="search_iter"):
-                log.exception(
-                    "Un unhandled exception is raised in 'search_twins'.",
-                    exc_info=True,
+        for _ in range(constant.RETRYING_ATTEMPTS):
+            try:
+                with refresh_token_lock:
+                    for response in iotics_api.search_iter(
+                        client_app_id=uuid4().hex, payload=search_criteria, timeout=5
+                    ):
+                        twins = response.payload.twins
+                        twins_found_list.extend(twins)
+            except grpc.RpcError as ex:
+                log_unexpected_grpc_exceptions_and_sleep(
+                    exception=ex, operation="search_twins"
                 )
-                sys.exit(1)
+            else:
+                break
 
         if not twins_found_list and keep_searching:
-            log.debug(
+            log.info(
                 "No Twins found based on the search criteria %s. Retrying in %ds",
                 search_criteria,
                 constant.RETRY_SLEEP_TIME,
             )
             sleep(constant.RETRY_SLEEP_TIME)
         else:
-            log.debug(
-                "Found %d Twins based on the search criteria", len(twins_found_list)
-            )
             break
 
     return twins_found_list
+
+
+def log_unexpected_grpc_exceptions_and_sleep(exception, operation: str):
+    """test if it is an exception that we know we can receive i.e.
+    - a stream timeout which occurs if a feed has been idle for a long time (a day).
+    - or auth token needs regenerating
+    otherwise log the exception, the caller should retry grpc exceptions
+
+    Args:
+        exception (Exception): the exception raised.
+        operation (str): the operation which raised the exception.
+
+    """
+
+    exception_code = exception.code()
+
+    if (
+        not (
+            exception_code == grpc.StatusCode.UNAVAILABLE
+            and exception.details() == "stream timeout"
+        )
+        and exception_code != grpc.StatusCode.UNAUTHENTICATED
+    ):
+        log.error(
+            "An unexpected gRPC exception was raised in '%s': %s",
+            operation,
+            exception,
+        )
+    else:
+        log.debug("Expected exception raised in '%s': %s", operation, exception)
+
+    sleep(constant.RETRY_SLEEP_TIME)

@@ -1,19 +1,33 @@
 import logging
 import os
-from random import randint
 from threading import Lock, Thread
 from time import sleep
 
 import constants as constant
+import grpc
+from data_source import DataSource
 from identity import Identity
-from iotics.lib.grpc.helpers import create_property, create_feed_with_meta, create_value
+from iotics.lib.grpc.helpers import create_feed_with_meta, create_property, create_value
 from iotics.lib.grpc.iotics_api import IoticsApi
-from utilities import auto_refresh_token, get_host_endpoints, search_twins
+from utilities import (
+    auto_refresh_token,
+    get_host_endpoints,
+    log_unexpected_grpc_exceptions_and_sleep,
+    search_twins,
+)
 
 log = logging.getLogger(__name__)
 
 
 class PublisherConnector:
+    def __init__(self, data_source: DataSource):
+        self._data_source: DataSource = data_source
+        self._iotics_identity: Identity = None
+        self._iotics_api: IoticsApi = None
+        self._refresh_token_lock: Lock = None
+        self._number_of_sensors: int = None
+        self._sensors_dict = {}
+
     def initialise(self):
         endpoints = get_host_endpoints(host_url=os.getenv("HOST_URL"))
         self._iotics_identity = Identity(
@@ -24,12 +38,13 @@ class PublisherConnector:
             agent_key_name=os.getenv("PUBLISHER_CONNECTOR_AGENT_KEY_NAME"),
             agent_seed=os.getenv("PUBLISHER_CONNECTOR_AGENT_SEED"),
         )
-        self._number_of_sensors = int(os.getenv("NUMBER_OF_SENSORS"))
         log.debug("IOTICS Identity initialised")
         self._iotics_api = IoticsApi(auth=self._iotics_identity)
         log.debug("IOTICS gRPC API initialised")
-        self._sensors_dict = {}
+
         self._refresh_token_lock = Lock()
+        self._number_of_sensors = int(constant.NUMBER_OF_SENSORS)
+        self._sensors_dict = {}
 
         # Auto-generate a new token when it expires
         Thread(
@@ -64,7 +79,17 @@ class PublisherConnector:
         twins_deleted_count: int = 0
         for twin in twins_found_list:
             twin_did = twin.twinId.id
-            self._iotics_api.delete_twin(twin_did)
+            for _ in range(constant.RETRYING_ATTEMPTS):
+                try:
+                    with self._refresh_token_lock:
+                        self._iotics_api.delete_twin(twin_did)
+                except grpc.RpcError as ex:
+                    self._log_unexpected_grpc_exceptions_and_sleep(
+                        exception=ex, operation="delete_twin"
+                    )
+                else:
+                    break
+
             twins_deleted_count += 1
 
         log.debug("Deleted %d old Twins", twins_deleted_count)
@@ -102,51 +127,64 @@ class PublisherConnector:
         ]
 
         for sensor_n in range(self._number_of_sensors):
+            twin_label = f"Temperature Sensor {sensor_n+1}"
+            twin_properties.append(
+                create_property(key=constant.LABEL, value=twin_label, language="en"),
+            )
+
             twin_registered_identity = (
                 self._iotics_identity.create_twin_with_control_delegation(
                     twin_key_name=f"sensor_{sensor_n+1}"
                 )
             )
-            twin_did = twin_registered_identity.did
+            twin_did: str = twin_registered_identity.did
             log.debug("Generated new Twin DID: %s", twin_did)
 
-            twin_label = f"Temperature Sensor {sensor_n+1}"
-            twin_properties.append(
-                create_property(key=constant.LABEL, value=twin_label, language="en"),
-            )
-            self._iotics_api.upsert_twin(
-                twin_did=twin_did, properties=twin_properties, feeds=feeds
-            )
-            log.debug("Upsert Twin %s - successful", twin_did)
+            for _ in range(constant.RETRYING_ATTEMPTS):
+                try:
+                    with self._refresh_token_lock:
+                        self._iotics_api.upsert_twin(
+                            twin_did=twin_did, properties=twin_properties, feeds=feeds
+                        )
+                except grpc.RpcError as ex:
+                    log_unexpected_grpc_exceptions_and_sleep(
+                        exception=ex, operation="upsert_twin"
+                    )
+                else:
+                    break
 
             self._sensors_dict.update({twin_label: twin_did})
-            log.info("Sensor Twin created with DID: %s", twin_did)
-
-    def _make_sensor_reading(self) -> int:
-        rand_temperature: int = randint(0, 30)
-        log.debug("Generated sensor reading of %d", rand_temperature)
-
-        return rand_temperature
+            log.info("%s created with DID: %s", twin_label, twin_did)
 
     def _share_data(self):
         while True:
             try:
                 for twin_label, twin_did in self._sensors_dict.items():
-                    rand_temperature = self._make_sensor_reading()
+                    rand_temperature = self._data_source.make_sensor_reading()
                     data_to_share: dict = {
                         constant.SENSOR_VALUE_LABEL: rand_temperature
                     }
-                    self._iotics_api.share_feed_data(
-                        twin_did=twin_did,
-                        feed_id=constant.SENSOR_FEED_ID,
-                        data=data_to_share,
-                    )
-                    log.debug(
-                        "Shared Feed Data from Twin %s Feed %s - successful",
-                        twin_did,
+                    for _ in range(constant.RETRYING_ATTEMPTS):
+                        try:
+                            with self._refresh_token_lock:
+                                self._iotics_api.share_feed_data(
+                                    twin_did=twin_did,
+                                    feed_id=constant.SENSOR_FEED_ID,
+                                    data=data_to_share,
+                                )
+                        except grpc.RpcError as ex:
+                            log_unexpected_grpc_exceptions_and_sleep(
+                                exception=ex, operation="share_feed_data"
+                            )
+                        else:
+                            break
+
+                    log.info(
+                        "Shared %s from Twin %s via Feed %s",
+                        data_to_share,
+                        twin_label,
                         constant.SENSOR_FEED_ID,
                     )
-                    log.info("Shared %s from Twin %s", data_to_share, twin_label)
 
                 sleep(constant.SENSOR_READING_PERIOD)
             except KeyboardInterrupt:

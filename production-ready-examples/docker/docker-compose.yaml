@@ -15,6 +15,17 @@ services:
       - ".env"
     networks: ["connector-example"]
   
+  # Follower Connector
+  follower:
+    container_name: "follower"
+    build:
+      context: ".."
+      dockerfile: "iotics-connector-example-follower/Dockerfile"
+    command: "python3 /home/iotics/app/main.py"
+    env_file:
+      - ".env"
+    networks: ["connector-example"]
+  
 networks:
   connector-example:
     name: "iotics-connector-example"

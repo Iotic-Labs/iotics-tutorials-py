@@ -7,10 +7,13 @@ else
   VENV_PATH_DIR = bin
 endif
 
-.PHONY: example-publisher-run example-run-all example-down
+.PHONY: example-publisher-run example-follower-run example-run-all example-down
 
 example-publisher-run:
 	$(Q) docker-compose -f docker/docker-compose.yaml up --build publisher
+
+example-follower-run:
+	$(Q) docker-compose -f docker/docker-compose.yaml up --build follower
 
 example-run-all:
 	$(Q) docker-compose -f docker/docker-compose.yaml up --build
