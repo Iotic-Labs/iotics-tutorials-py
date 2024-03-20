@@ -7,13 +7,29 @@ else
   VENV_PATH_DIR = bin
 endif
 
-.PHONY: example-publisher-run example-follower-run example-run-all example-down
-
 example-publisher-run:
 	$(Q) docker-compose -f docker/docker-compose.yaml up --build publisher
 
+example-publisher-run-detached:
+	$(Q) docker-compose -f docker/docker-compose.yaml up --build publisher -d
+
+example-publisher-logs:
+	$(Q) docker-compose -f docker/docker-compose.yaml logs publisher -f
+
+example-publisher-down:
+	$(Q) docker-compose -f docker/docker-compose.yaml down publisher
+
 example-follower-run:
 	$(Q) docker-compose -f docker/docker-compose.yaml up --build follower
+
+example-follower-run-detached:
+	$(Q) docker-compose -f docker/docker-compose.yaml up --build follower -d
+
+example-follower-logs:
+	$(Q) docker-compose -f docker/docker-compose.yaml logs follower -f
+
+example-follower-down:
+	$(Q) docker-compose -f docker/docker-compose.yaml down follower
 
 example-run-all:
 	$(Q) docker-compose -f docker/docker-compose.yaml up --build

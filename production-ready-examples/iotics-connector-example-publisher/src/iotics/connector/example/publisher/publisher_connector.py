@@ -1,20 +1,20 @@
 import logging
 import os
 from threading import Lock, Thread
-from time import sleep
+from typing import List
 
 import constants as constant
-import grpc
 from data_source import DataSource
 from identity import Identity
-from iotics.lib.grpc.helpers import create_feed_with_meta, create_property, create_value
-from iotics.lib.grpc.iotics_api import IoticsApi
-from utilities import (
-    auto_refresh_token,
-    get_host_endpoints,
-    log_unexpected_grpc_exceptions_and_sleep,
-    search_twins,
+from iotics.lib.grpc.helpers import (
+    create_feed_with_meta,
+    create_location,
+    create_property,
+    create_value,
 )
+from iotics.lib.grpc.iotics_api import IoticsApi
+from twin_structure import TwinStructure
+from utilities import auto_refresh_token, get_host_endpoints, retry_on_exception
 
 log = logging.getLogger(__name__)
 
@@ -25,11 +25,14 @@ class PublisherConnector:
         self._iotics_identity: Identity = None
         self._iotics_api: IoticsApi = None
         self._refresh_token_lock: Lock = None
-        self._number_of_sensors: int = None
-        self._sensors_dict = {}
+        self._threads_list: List[Thread] = None
+        self._twins_list: List[TwinStructure] = None
 
-    def initialise(self):
-        endpoints = get_host_endpoints(host_url=os.getenv("HOST_URL"))
+        self._initialise()
+
+    def _initialise(self):
+        log.debug("Initialising Publisher Connector...")
+        endpoints = get_host_endpoints(host_url=os.getenv("PUBLISHER_HOST_URL"))
         self._iotics_identity = Identity(
             resolver_url=endpoints.get("resolver"),
             grpc_endpoint=endpoints.get("grpc"),
@@ -43,8 +46,8 @@ class PublisherConnector:
         log.debug("IOTICS gRPC API initialised")
 
         self._refresh_token_lock = Lock()
-        self._number_of_sensors = int(constant.NUMBER_OF_SENSORS)
-        self._sensors_dict = {}
+        self._threads_list = []
+        self._twins_list = []
 
         # Auto-generate a new token when it expires
         Thread(
@@ -54,81 +57,91 @@ class PublisherConnector:
             daemon=True,
         ).start()
 
-        self._clear_space()
-
     def _clear_space(self):
-        log.info("Deleting old Sensor Twins...")
+        log.info("Deleting Sensor Twins...")
 
-        # Search for Sensor Twins
-        search_criteria = self._iotics_api.get_search_payload(
-            properties=[
-                create_property(
-                    key=constant.TYPE, value=constant.THERMOMETER, is_uri=True
-                ),
-                create_property(
-                    key=constant.CREATED_BY, value=constant.CREATED_BY_NAME
-                ),
-            ],
-            response_type="FULL",
-        )
+        for twin_did in self._twins_list:
+            retry_on_exception(
+                self._iotics_api.delete_twin,
+                "delete_twin",
+                self._refresh_token_lock,
+                twin_did=twin_did,
+            )
 
-        twins_found_list = search_twins(
-            search_criteria, self._refresh_token_lock, self._iotics_api, False
-        )
+            log.debug("Deleted Twin DID %s", twin_did)
 
-        twins_deleted_count: int = 0
-        for twin in twins_found_list:
-            twin_did = twin.twinId.id
-            for _ in range(constant.RETRYING_ATTEMPTS):
-                try:
-                    with self._refresh_token_lock:
-                        self._iotics_api.delete_twin(twin_did)
-                except grpc.RpcError as ex:
-                    self._log_unexpected_grpc_exceptions_and_sleep(
-                        exception=ex, operation="delete_twin"
-                    )
-                else:
-                    break
-
-            twins_deleted_count += 1
-
-        log.debug("Deleted %d old Twins", twins_deleted_count)
-
-    def _create_sensor_twins(self):
+    def _setup_twin_structure(self) -> TwinStructure:
         twin_properties = [
-            create_property(key=constant.CREATED_BY, value=constant.CREATED_BY_NAME),
-            create_property(key=constant.TYPE, value=constant.THERMOMETER, is_uri=True),
-        ]
-        feed_properties = [
-            create_property(
-                key=constant.LABEL,
-                value="Temperature",
-                language="en",
-            ),
+            create_property(key=constant.TYPE, value=constant.SENSOR, is_uri=True),
             create_property(
                 key=constant.COMMENT,
-                value=f"Temperature reading that updates every {constant.SENSOR_READING_PERIOD} seconds",
+                value="Device that senses info about Temperature and Humidity",
+                language="en",
+            ),
+            create_property(key=constant.CREATED_BY, value=constant.CREATED_BY_NAME),
+        ]
+
+        twin_location = create_location(
+            lat=constant.LONDON_LAT, lon=constant.LONDON_LON
+        )
+
+        # Defining Temperature Feed's Metadata
+        temperature_feed_properties = [
+            create_property(key=constant.LABEL, value="Temperature", language="en"),
+            create_property(
+                key=constant.COMMENT,
+                value=f"Temperature reading that updates every {constant.TEMPERATURE_READING_PERIOD} seconds",
                 language="en",
             ),
         ]
-        feed_values = [
+        temperature_feed_values = [
             create_value(
                 label=constant.SENSOR_VALUE_LABEL,
                 data_type="float",
                 unit=constant.CELSIUS_DEGREES,
             ),
         ]
-        feeds = [
-            create_feed_with_meta(
-                feed_id=constant.SENSOR_FEED_ID,
-                properties=feed_properties,
-                values=feed_values,
+        # Defining Humidity Feed's Metadata
+        humidity_feed_properties = [
+            create_property(key=constant.LABEL, value="Humidity", language="en"),
+            create_property(
+                key=constant.COMMENT,
+                value=f"Humidity reading that updates every {constant.HUMIDITY_READING_PERIOD} seconds",
+                language="en",
+            ),
+        ]
+        humidity_feed_values = [
+            create_value(
+                label=constant.SENSOR_VALUE_LABEL,
+                data_type="integer",
+                unit=constant.PERCENT,
             ),
         ]
 
-        for sensor_n in range(self._number_of_sensors):
-            twin_label = f"Temperature Sensor {sensor_n+1}"
-            twin_properties.append(
+        feeds_list = [
+            create_feed_with_meta(
+                feed_id=constant.TEMPERATURE_FEED_ID,
+                properties=temperature_feed_properties,
+                values=temperature_feed_values,
+            ),
+            create_feed_with_meta(
+                feed_id=constant.HUMIDITY_FEED_ID,
+                properties=humidity_feed_properties,
+                values=humidity_feed_values,
+            ),
+        ]
+
+        twin_structure = TwinStructure(
+            properties=twin_properties, location=twin_location, feeds_list=feeds_list
+        )
+
+        return twin_structure
+
+    def _create_twins(self, twin_structure: TwinStructure):
+        log.info("Creating Sensor Twins...")
+        for sensor_n in range(constant.NUMBER_OF_SENSORS):
+            twin_label = f"Sensor {sensor_n+1}"
+            twin_structure.properties.append(
                 create_property(key=constant.LABEL, value=twin_label, language="en"),
             )
 
@@ -140,56 +153,59 @@ class PublisherConnector:
             twin_did: str = twin_registered_identity.did
             log.debug("Generated new Twin DID: %s", twin_did)
 
-            for _ in range(constant.RETRYING_ATTEMPTS):
-                try:
-                    with self._refresh_token_lock:
-                        self._iotics_api.upsert_twin(
-                            twin_did=twin_did, properties=twin_properties, feeds=feeds
-                        )
-                except grpc.RpcError as ex:
-                    log_unexpected_grpc_exceptions_and_sleep(
-                        exception=ex, operation="upsert_twin"
-                    )
-                else:
-                    break
+            retry_on_exception(
+                self._iotics_api.upsert_twin,
+                "upsert_twin",
+                self._refresh_token_lock,
+                twin_did=twin_did,
+                location=twin_structure.location,
+                properties=twin_structure.properties,
+                feeds=twin_structure.feeds_list,
+            )
 
-            self._sensors_dict.update({twin_label: twin_did})
             log.info("%s created with DID: %s", twin_label, twin_did)
 
-    def _share_data(self):
+            for feed in twin_structure.feeds_list:
+                feed_thread = Thread(
+                    target=self._share_data,
+                    args=[twin_did, feed.id],
+                    name=f"{twin_did}_{feed.id}",
+                )
+                feed_thread.start()
+                self._threads_list.append(feed_thread)
+
+            self._twins_list.append(twin_did)
+
+    def _share_data(self, twin_did: str, feed_id: str):
         while True:
-            try:
-                for twin_label, twin_did in self._sensors_dict.items():
-                    rand_temperature = self._data_source.make_sensor_reading()
-                    data_to_share: dict = {
-                        constant.SENSOR_VALUE_LABEL: rand_temperature
-                    }
-                    for _ in range(constant.RETRYING_ATTEMPTS):
-                        try:
-                            with self._refresh_token_lock:
-                                self._iotics_api.share_feed_data(
-                                    twin_did=twin_did,
-                                    feed_id=constant.SENSOR_FEED_ID,
-                                    data=data_to_share,
-                                )
-                        except grpc.RpcError as ex:
-                            log_unexpected_grpc_exceptions_and_sleep(
-                                exception=ex, operation="share_feed_data"
-                            )
-                        else:
-                            break
+            data_type = {
+                constant.TEMPERATURE_FEED_ID: self._data_source.make_temperature_reading,
+                constant.HUMIDITY_FEED_ID: self._data_source.make_humidity_reading,
+            }
+            generate_data = data_type.get(feed_id)
+            data_to_share = generate_data()
 
-                    log.info(
-                        "Shared %s from Twin %s via Feed %s",
-                        data_to_share,
-                        twin_label,
-                        constant.SENSOR_FEED_ID,
-                    )
+            retry_on_exception(
+                self._iotics_api.share_feed_data,
+                "share_feed_data",
+                self._refresh_token_lock,
+                twin_did=twin_did,
+                feed_id=feed_id,
+                data=data_to_share,
+            )
 
-                sleep(constant.SENSOR_READING_PERIOD)
-            except KeyboardInterrupt:
-                break
+            log.info(
+                "Shared %s from Twin DID %s via Feed %s",
+                data_to_share,
+                twin_did,
+                feed_id,
+            )
 
     def start(self):
-        self._create_sensor_twins()
-        self._share_data()
+        twin_structure = self._setup_twin_structure()
+        self._create_twins(twin_structure)
+
+        for thread in self._threads_list:
+            thread.join()
+
+        self._clear_space()

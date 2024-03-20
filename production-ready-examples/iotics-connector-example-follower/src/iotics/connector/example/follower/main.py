@@ -16,7 +16,6 @@ log = logging.getLogger(__name__)
 def main():
     data_processor: DataProcessor = DataProcessor()
     follower_connector: FollowerConnector = FollowerConnector(data_processor)
-    follower_connector.initialise()
     follower_connector.start()
 
 

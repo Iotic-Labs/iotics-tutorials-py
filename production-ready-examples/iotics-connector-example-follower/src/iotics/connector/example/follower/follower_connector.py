@@ -1,9 +1,9 @@
-from datetime import datetime
 import json
 import logging
 import os
+from datetime import datetime
 from threading import Lock, Thread
-from time import sleep
+from typing import List
 
 import constants as constant
 import grpc
@@ -11,11 +11,13 @@ from data_processor import DataProcessor
 from identity import Identity
 from iotics.lib.grpc.helpers import create_property
 from iotics.lib.grpc.iotics_api import IoticsApi
+from twin_structure import TwinStructure
 from utilities import (
     auto_refresh_token,
+    expected_grpc_exception,
     get_host_endpoints,
+    retry_on_exception,
     search_twins,
-    log_unexpected_grpc_exceptions_and_sleep,
 )
 
 log = logging.getLogger(__name__)
@@ -23,14 +25,29 @@ log = logging.getLogger(__name__)
 
 class FollowerConnector:
     def __init__(self, data_processor: DataProcessor):
+        """Constructor of a Follower Connector object.
+
+        Args:
+            data_processor (DataProcessor): object simulating a data processor engine.
+        """
+
         self._data_processor: DataProcessor = data_processor
         self._iotics_identity: Identity = None
         self._iotics_api: IoticsApi = None
         self._refresh_token_lock: Lock = None
         self._twin_follower_did: str = None
+        self._threads_list: List[Thread] = None
 
-    def initialise(self):
-        endpoints = get_host_endpoints(host_url=os.getenv("HOST_URL"))
+        self._initialise()
+
+    def _initialise(self):
+        """Initialise all the variables of this class. It also starts
+        an auto refresh token Thread so the IOTICS token is automatically
+        regenerated when it expires.
+        """
+
+        log.debug("Initialising Follower Connector...")
+        endpoints = get_host_endpoints(host_url=os.getenv("FOLLOWER_HOST_URL"))
         self._iotics_identity = Identity(
             resolver_url=endpoints.get("resolver"),
             grpc_endpoint=endpoints.get("grpc"),
@@ -44,8 +61,8 @@ class FollowerConnector:
         log.debug("IOTICS gRPC API initialised")
 
         self._refresh_token_lock = Lock()
+        self._threads_list = []
 
-        # Auto-generate a new token when it expires
         Thread(
             target=auto_refresh_token,
             args=[self._refresh_token_lock, self._iotics_identity, self._iotics_api],
@@ -53,60 +70,42 @@ class FollowerConnector:
             daemon=True,
         ).start()
 
-        self._clear_space()
-
     def _clear_space(self):
-        log.info("Deleting old Follower Twins...")
+        """Delete the Follower Twin created by this example."""
 
-        # Search for Follower Twins
-        search_criteria = self._iotics_api.get_search_payload(
-            properties=[
-                create_property(
-                    key=constant.LABEL, value="Twin Follower", language="en"
-                ),
-                create_property(
-                    key=constant.CREATED_BY, value=constant.CREATED_BY_NAME
-                ),
-            ],
-            response_type="FULL",
+        log.info("Deleting Follower Twin...")
+        retry_on_exception(
+            self._iotics_api.delete_twin,
+            "delete_twin",
+            self._refresh_token_lock,
+            twin_did=self._twin_follower_did,
         )
 
-        twins_found_list = search_twins(
-            search_criteria, self._refresh_token_lock, self._iotics_api, False
-        )
+        log.debug("Twin Follower %s deleted", self._twin_follower_did)
 
-        twins_deleted_count: int = 0
-        for twin in twins_found_list:
-            twin_did = twin.twinId.id
-            for _ in range(constant.RETRYING_ATTEMPTS):
-                try:
-                    with self._refresh_token_lock:
-                        self._iotics_api.delete_twin(twin_did)
-                except grpc.RpcError as ex:
-                    self._log_unexpected_grpc_exceptions_and_sleep(
-                        exception=ex, operation="delete_twin"
-                    )
-                else:
-                    break
+    def _setup_twin_structure(self) -> TwinStructure:
+        """Define the Twin structure in terms of Twin's metadata.
 
-            twins_deleted_count += 1
+        Returns:
+            TwinStructure: an object representing the structure of the Twin
+        """
 
-        log.debug("Deleted %d old Twins", twins_deleted_count)
-
-    def _create_twin_follower(self):
-        log.info("Creating Twin Follower...")
-
-        # Define Twin Follower's Metadata
-        twin_label: str = "Twin Follower"
         twin_properties = [
-            create_property(key=constant.LABEL, value=twin_label, language="en"),
+            create_property(key=constant.LABEL, value="Twin Follower", language="en"),
             create_property(
                 key=constant.COMMENT,
-                value=f"Twin Follower that waits to receive Twin Sensors' data",
+                value=f"Twin Follower that receives Twin Sensors' data about Temperature and Humidity",
                 language="en",
             ),
             create_property(key=constant.CREATED_BY, value=constant.CREATED_BY_NAME),
         ]
+
+        twin_structure = TwinStructure(properties=twin_properties)
+
+        return twin_structure
+
+    def _create_twin(self, twin_structure: TwinStructure):
+        log.info("Creating Twin Follower...")
 
         # Generate a new Twin Registered Identity for the Twin Follower
         twin_follower_identity = (
@@ -117,30 +116,23 @@ class FollowerConnector:
         self._twin_follower_did = twin_follower_identity.did
         log.debug("Generated new Twin DID: %s", self._twin_follower_did)
 
-        for _ in range(constant.RETRYING_ATTEMPTS):
-            try:
-                with self._refresh_token_lock:
-                    self._iotics_api.upsert_twin(
-                        twin_did=self._twin_follower_did, properties=twin_properties
-                    )
-            except grpc.RpcError as ex:
-                log_unexpected_grpc_exceptions_and_sleep(
-                    exception=ex, operation="upsert_twin"
-                )
-            else:
-                break
+        retry_on_exception(
+            self._iotics_api.upsert_twin,
+            "upsert_twin",
+            self._refresh_token_lock,
+            twin_did=self._twin_follower_did,
+            properties=twin_structure.properties,
+        )
 
-        log.info("%s created with DID: %s", twin_label, self._twin_follower_did)
+        log.info("Created Twin Follower with DID: %s", self._twin_follower_did)
 
     def _search_sensor_twins(self):
         log.info("Searching for Sensor Twins...")
         search_criteria = self._iotics_api.get_search_payload(
             properties=[
+                create_property(key=constant.TYPE, value=constant.SENSOR, is_uri=True),
                 create_property(
                     key=constant.CREATED_BY, value=constant.CREATED_BY_NAME
-                ),
-                create_property(
-                    key=constant.TYPE, value=constant.THERMOMETER, is_uri=True
                 ),
             ],
             response_type="FULL",
@@ -156,36 +148,22 @@ class FollowerConnector:
 
     def _get_feed_data(self, publisher_twin_did: str, publisher_feed_id: str):
         log.info(
-            "Waiting for data from Twin %s, Feed %s...",
+            "Getting Feed data from Twin %s, Feed %s...",
             publisher_twin_did,
             publisher_feed_id,
         )
-        thread_name = self._generate_thread_name(
-            twin_id=publisher_twin_did, feed_id=publisher_feed_id
-        )
-
-        get_new_fetch_interest: bool = True
 
         while True:
-            if not get_new_fetch_interest:
-                log.debug("'get_new_fetch_interest' set to False. Exiting Thread...")
-                break
-
-            for _ in range(constant.RETRYING_ATTEMPTS):
-                try:
-                    with self._refresh_token_lock:
-                        feed_listener = self._iotics_api.fetch_interests(
-                            follower_twin_did=self._twin_follower_did,
-                            followed_twin_did=publisher_twin_did,
-                            followed_feed_id=publisher_feed_id,
-                            fetch_last_stored=False,
-                        )
-                except grpc.RpcError as ex:
-                    log_unexpected_grpc_exceptions_and_sleep(
-                        exception=ex, operation="fetch_interests"
-                    )
-                else:
-                    break
+            log.debug("Generating a new feed_listener...")
+            feed_listener = retry_on_exception(
+                self._iotics_api.fetch_interests,
+                "fetch_interests",
+                self._refresh_token_lock,
+                follower_twin_did=self._twin_follower_did,
+                followed_twin_did=publisher_twin_did,
+                followed_feed_id=publisher_feed_id,
+                fetch_last_stored=False,
+            )
 
             try:
                 for latest_feed_data in feed_listener:
@@ -210,28 +188,14 @@ class FollowerConnector:
                         received_data,
                     )
             except grpc.RpcError as grpc_ex:
-                if (
-                    grpc_ex.code() == grpc.StatusCode.CANCELLED
-                    and "locally cancelled" in grpc_ex.details().lower()
+                if not expected_grpc_exception(
+                    exception=grpc_ex, operation="feed_listener"
                 ):
-                    logging.debug(
-                        "Thread %s was requested to be cancelled by this code",
-                        thread_name,
-                    )
-                    get_new_fetch_interest = False
                     break
-
-                log_unexpected_grpc_exceptions_and_sleep(
-                    exception=grpc_ex, operation="process_feed_data"
-                )
             except Exception as gen_ex:
-                log.exception("General exception in '_get_feed_data': %s", gen_ex)
-                raise
+                log.exception("General exception in 'feed_listener': %s", gen_ex)
 
-    def _generate_thread_name(self, twin_id: str, feed_id: str) -> str:
-        thread_name: str = f"{twin_id}_{feed_id}"
-
-        return thread_name
+        log.debug("Exiting thread...")
 
     def _follow_sensor_twins(self, sensor_twins_list):
         for sensor_twin in sensor_twins_list:
@@ -241,17 +205,26 @@ class FollowerConnector:
             for twin_feed in sensor_twin_feeds:
                 feed_id = twin_feed.feedId.id
 
-                thread_name = self._generate_thread_name(
-                    twin_id=sensor_twin_id, feed_id=feed_id
-                )
+                thread_name = f"{sensor_twin_id}_{feed_id}"
 
-                Thread(
+                feed_thread = Thread(
                     target=self._get_feed_data,
                     args=[sensor_twin_id, feed_id],
                     name=thread_name,
-                ).start()
+                )
+                log.debug("Starting new Thread %s...", thread_name)
+                feed_thread.start()
+                self._threads_list.append(feed_thread)
 
     def start(self):
-        self._create_twin_follower()
+        twin_structure = self._setup_twin_structure()
+        self._create_twin(twin_structure)
         sensor_twins_list = self._search_sensor_twins()
         self._follow_sensor_twins(sensor_twins_list)
+
+        for thread in self._threads_list:
+            thread.join()
+
+        log.debug("Deleting Twin Follower %s...", self._twin_follower.did)
+
+        self._clear_space()
