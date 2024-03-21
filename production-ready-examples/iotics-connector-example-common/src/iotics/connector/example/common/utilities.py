@@ -8,7 +8,7 @@ import constants as constant
 import grpc
 import requests
 from identity import Identity
-from iotics.api.search_pb2.SearchRequest import Payload
+from iotics.api import search_pb2
 from iotics.lib.grpc.iotics_api import IoticsApi
 
 logging.basicConfig(
@@ -70,7 +70,7 @@ def auto_refresh_token(
 
 
 def search_twins(
-    search_criteria: Payload,
+    search_criteria: search_pb2.SearchRequest.Payload,
     refresh_token_lock: Lock,
     iotics_api: IoticsApi,
     keep_searching: bool = True,

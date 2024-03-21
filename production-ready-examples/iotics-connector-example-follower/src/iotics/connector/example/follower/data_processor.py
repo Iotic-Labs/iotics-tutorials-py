@@ -1,4 +1,6 @@
+import json
 import logging
+from datetime import datetime
 
 log = logging.getLogger(__name__)
 
@@ -6,24 +8,24 @@ log = logging.getLogger(__name__)
 class DataProcessor:
     @staticmethod
     def print_on_screen(
-        publisher_twin_did: str,
-        publisher_feed_id: str,
-        occurred_at: str,
-        data: dict,
+        publisher_twin_did: str, publisher_feed_id: str, feed_data_payload
     ):
         """Print on screen the data received.
 
         Args:
             publisher_twin_did (str): the Twin DID publishing data.
             publisher_feed_id (str): the Feed ID from which the data is published.
-            occurred_at (str): date and time of when the data sample was sent.
-            data (dict): data received.
+            feed_data_payload: payload of the Feed data received.
         """
+
+        received_data = json.loads(feed_data_payload.feedData.data)
+        occurred_at_unix_time = feed_data_payload.feedData.occurredAt.seconds
+        occurred_at_timestamp = str(datetime.fromtimestamp(occurred_at_unix_time))
 
         log.info(
             "Received data %s published by Twin DID %s via Feed %s at %s",
-            data,
+            received_data,
             publisher_twin_did,
             publisher_feed_id,
-            occurred_at,
+            occurred_at_timestamp,
         )

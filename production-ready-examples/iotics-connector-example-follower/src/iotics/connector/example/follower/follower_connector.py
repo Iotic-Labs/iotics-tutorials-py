@@ -1,7 +1,5 @@
-import json
 import logging
 import os
-from datetime import datetime
 from threading import Lock, Thread
 from typing import List
 
@@ -105,9 +103,14 @@ class FollowerConnector:
         return twin_structure
 
     def _create_twin(self, twin_structure: TwinStructure):
+        """Create the Twin Follower given a Twin Structure.
+
+        Args:
+            twin_structure (TwinStructure): Structure of the Twin Follower to create.
+        """
+
         log.info("Creating Twin Follower...")
 
-        # Generate a new Twin Registered Identity for the Twin Follower
         twin_follower_identity = (
             self._iotics_identity.create_twin_with_control_delegation(
                 twin_key_name="TwinFollower"
@@ -127,6 +130,12 @@ class FollowerConnector:
         log.info("Created Twin Follower with DID: %s", self._twin_follower_did)
 
     def _search_sensor_twins(self):
+        """Search for the Sensor Twins.
+
+        Returns:
+            twins_found_list: list of Twins found by the Search operation.
+        """
+
         log.info("Searching for Sensor Twins...")
         search_criteria = self._iotics_api.get_search_payload(
             properties=[
@@ -147,6 +156,17 @@ class FollowerConnector:
         return twins_found_list
 
     def _get_feed_data(self, publisher_twin_did: str, publisher_feed_id: str):
+        """Entry point for each Thread. Within an infinite loop
+        get a new feed listener given the info about the Twin and Feed to follow
+        alongside the Twin Follower's DID. Wait for new data samples, then process it.
+        In case of an expected exception (i.e.: token expired), generate a new
+        feed listener and wait again for new data samples.
+
+        Args:
+            publisher_twin_did (str): Twin Publisher DID
+            publisher_feed_id (str): Twin Publisher's Feed ID
+        """
+
         log.info(
             "Getting Feed data from Twin %s, Feed %s...",
             publisher_twin_did,
@@ -162,6 +182,10 @@ class FollowerConnector:
                 follower_twin_did=self._twin_follower_did,
                 followed_twin_did=publisher_twin_did,
                 followed_feed_id=publisher_feed_id,
+                # 'fetch_last_stored' is set to False
+                # otherwise at any new 'feed_listener' generated
+                # (i.e.: any time the token expires)
+                # we will get the last shared value.
                 fetch_last_stored=False,
             )
 
@@ -173,21 +197,12 @@ class FollowerConnector:
                         publisher_feed_id,
                     )
                     feed_data_payload = latest_feed_data.payload
-                    received_data = json.loads(feed_data_payload.feedData.data)
-                    occurred_at_unix_time = (
-                        feed_data_payload.feedData.occurredAt.seconds
-                    )
-                    occurred_at_timestamp = str(
-                        datetime.fromtimestamp(occurred_at_unix_time)
-                    )
 
                     self._data_processor.print_on_screen(
-                        publisher_twin_did,
-                        publisher_feed_id,
-                        occurred_at_timestamp,
-                        received_data,
+                        publisher_twin_did, publisher_feed_id, feed_data_payload
                     )
             except grpc.RpcError as grpc_ex:
+                # Exit the infinite loop in case of an unexpected exception
                 if not expected_grpc_exception(
                     exception=grpc_ex, operation="feed_listener"
                 ):
@@ -198,6 +213,13 @@ class FollowerConnector:
         log.debug("Exiting thread...")
 
     def _follow_sensor_twins(self, sensor_twins_list):
+        """Create and start a new Thread for each Feed of each Twin included
+        in the Sensor Twins List. Then add the thread to the Thread list.
+
+        Args:
+            sensor_twins_list: list of Twins found by the Search operation.
+        """
+
         for sensor_twin in sensor_twins_list:
             sensor_twin_id = sensor_twin.twinId.id
             sensor_twin_feeds = sensor_twin.feeds
@@ -217,6 +239,10 @@ class FollowerConnector:
                 self._threads_list.append(feed_thread)
 
     def start(self):
+        """Create the Twin Follower, search for Sensor Twins and follow their Feeds.
+        When the program terminates, delete the Twin Follower from the Space.
+        """
+
         twin_structure = self._setup_twin_structure()
         self._create_twin(twin_structure)
         sensor_twins_list = self._search_sensor_twins()
@@ -224,7 +250,5 @@ class FollowerConnector:
 
         for thread in self._threads_list:
             thread.join()
-
-        log.debug("Deleting Twin Follower %s...", self._twin_follower.did)
 
         self._clear_space()
