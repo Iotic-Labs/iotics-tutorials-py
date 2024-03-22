@@ -11,7 +11,14 @@ from datetime import datetime, timedelta, timezone
 from time import sleep
 from typing import List
 
-from helpers.constants import DEFINES, INDEX_URL, THERMOMETER, USER_KEY_NAME, USER_SEED
+from helpers.constants import (
+    CREATED_BY,
+    INDEX_URL,
+    THERMOMETER,
+    TYPE,
+    USER_KEY_NAME,
+    USER_SEED,
+)
 from helpers.stomp_client import StompClient
 from helpers.utilities import make_api_call
 from iotics.lib.identity.api.high_level_api import (
@@ -99,10 +106,11 @@ def main():
         "filter": {
             "text": "publisher",
             "properties": [
+                {"key": TYPE, "uriValue": {"value": THERMOMETER}},
                 {
-                    "key": DEFINES,
-                    "uriValue": {"value": THERMOMETER},
-                }
+                    "key": CREATED_BY,
+                    "stringLiteralValue": {"value": "Michael Joseph Jackson"},
+                },
             ],
         },
     }
@@ -156,9 +164,8 @@ def main():
                 base64.b64decode(received_data).decode("ascii")
             )
             print(
-                f"Received Feed data {decoded_feed_data} published from Twin Publisher {followed_twin_id}", end=" "
+                f"Received Feed data {received_data} published by Twin {followed_twin_id} via Feed {followed_feed_id}"
             )
-            print(f"to Twin Follower {follower_twin_id} via Feed {followed_feed_id}")
 
     # In order to subscribe to a Feed (or an Input) via REST, the only way is to use STOMP.
     # STOMP defines a protocol for clients and servers to communicate with messaging semantics.
@@ -191,7 +198,9 @@ def main():
 
             # We have now all the info we need to subscribe to a Feed: Twin ID and Feed ID.
             # We can now use the STOMP Client object to subscribe to the endpoint.
-            subscribe_to_feed_endpoint: str = f"/qapi/twins/{twin_follower_did}/interests/twins/{twin_id}/feeds/{feed_id}"
+            subscribe_to_feed_endpoint: str = (
+                f"/qapi/twins/{twin_follower_did}/interests/twins/{twin_id}/feeds/{feed_id}"
+            )
             stomp_client.subscribe(
                 topic=subscribe_to_feed_endpoint, subscription_id=f"{twin_id}-{feed_id}"
             )

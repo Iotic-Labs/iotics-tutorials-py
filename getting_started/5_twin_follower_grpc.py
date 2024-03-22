@@ -10,7 +10,14 @@ from threading import Thread
 from time import sleep
 
 import grpc
-from helpers.constants import DEFINES, INDEX_URL, THERMOMETER, USER_KEY_NAME, USER_SEED
+from helpers.constants import (
+    CREATED_BY,
+    TYPE,
+    INDEX_URL,
+    THERMOMETER,
+    USER_KEY_NAME,
+    USER_SEED,
+)
 from helpers.identity_interface import IdentityInterface
 from helpers.utilities import make_api_call
 from iotics.lib.grpc.helpers import create_property
@@ -79,7 +86,10 @@ def main():
     # Be aware, if in the same Host there are other Twins that include these parameters,
     # all of them will be returned by this search.
     search_criteria = iotics_api.get_search_payload(
-        properties=[create_property(key=DEFINES, value=THERMOMETER, is_uri=True)],
+        properties=[
+            create_property(key=TYPE, value=THERMOMETER, is_uri=True),
+            create_property(key=CREATED_BY, value="Michael Joseph Jackson"),
+        ],
         text="publisher",
         response_type="FULL",
     )
@@ -112,11 +122,7 @@ def main():
                 # In advanced applications, this section will contain the logic
                 # you want to trigger whenever a new data sample is received (see exercise #8).
                 print(
-                    f"Received Feed data {received_data} published from Twin Publisher {followed_twin_id}",
-                    end=" ",
-                )
-                print(
-                    f"to Twin Follower {follower_twin_id} via Feed {followed_feed_id}"
+                    f"Received Feed data {received_data} published by Twin {followed_twin_id} via Feed {followed_feed_id}"
                 )
 
         # The following exception is raised in 'feed_listener' when the token expires

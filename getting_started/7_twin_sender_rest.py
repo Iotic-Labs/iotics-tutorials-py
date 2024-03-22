@@ -14,11 +14,11 @@ from typing import List
 
 from helpers.constants import (
     CREATED_BY,
-    DEFINES,
     INDEX_URL,
     LABEL,
     LIGHT_BULB,
     MOTION_SENSOR,
+    TYPE,
     USER_KEY_NAME,
     USER_SEED,
 )
@@ -89,7 +89,7 @@ def main():
         },
         # In this example we want to virtualise a motion sensor, so we can use as a Twin Property
         # any Ontology that represents such an object
-        {"key": DEFINES, "uriValue": {"value": MOTION_SENSOR}},
+        {"key": TYPE, "uriValue": {"value": MOTION_SENSOR}},
     ]
 
     upsert_twin_payload: dict = {
@@ -123,12 +123,7 @@ def main():
         "responseType": "FULL",
         "filter": {
             "text": "receiver",
-            "properties": [
-                {
-                    "key": DEFINES,
-                    "uriValue": {"value": LIGHT_BULB},
-                }
-            ],
+            "properties": [{"key": TYPE, "uriValue": {"value": LIGHT_BULB}}],
         },
     }
 

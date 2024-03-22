@@ -5,6 +5,8 @@ In particular it will search for the Twin Publisher implemented in the previous 
 from helpers.constants import (
     INDEX_URL,
     CREATED_BY,
+    THERMOMETER,
+    TYPE,
     USER_KEY_NAME,
     USER_SEED,
 )
@@ -66,7 +68,8 @@ def main():
     # 3. Minimal (default): return only the minimum details of the Twins found: Twin ID, Host ID.
     search_criteria = iotics_api.get_search_payload(
         properties=[
-            create_property(key=CREATED_BY, value="Michael Joseph Jackson")
+            create_property(key=TYPE, value=THERMOMETER, is_uri=True),
+            create_property(key=CREATED_BY, value="Michael Joseph Jackson"),
         ],
         text="publisher",
         response_type="FULL",

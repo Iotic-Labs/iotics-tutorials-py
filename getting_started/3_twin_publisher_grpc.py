@@ -8,12 +8,12 @@ from time import sleep
 from helpers.constants import (
     CELSIUS_DEGREES,
     CREATED_BY,
-    DEFINES,
     INDEX_URL,
     LABEL,
     LONDON_LAT,
     LONDON_LON,
     THERMOMETER,
+    TYPE,
     USER_KEY_NAME,
     USER_SEED,
 )
@@ -91,12 +91,14 @@ def main():
     # Only Agents can perform actions against a Twin.
     # This means, after creating the Twin Identity it has to "control-delegate" an Agent Identity
     # so the latter can control the Digital Twin.
-    twin_publisher_identity: RegisteredIdentity = identity_api.create_twin_with_control_delegation(
-        # The Twin Key Name's concept is the same as Agent and User Key Name
-        twin_key_name="TwinPublisher",
-        # It is a best-practice to re-use the "AGENT_SEED" as a Twin seed.
-        twin_seed=bytes.fromhex(AGENT_SEED),
-        agent_registered_identity=agent_identity,
+    twin_publisher_identity: RegisteredIdentity = (
+        identity_api.create_twin_with_control_delegation(
+            # The Twin Key Name's concept is the same as Agent and User Key Name
+            twin_key_name="TwinPublisher",
+            # It is a best-practice to re-use the "AGENT_SEED" as a Twin seed.
+            twin_seed=bytes.fromhex(AGENT_SEED),
+            agent_registered_identity=agent_identity,
+        )
     )
 
     twin_publisher_did: str = twin_publisher_identity.did
@@ -111,11 +113,11 @@ def main():
         create_property(key=LABEL, value="Twin Publisher", language="en"),
         # 'Created By' represents the name of the User that creates the Twin
         create_property(key=CREATED_BY, value="Michael Joseph Jackson"),
-        # 'Defines' provides a way to associate a specific Ontology to a Twin
+        # 'Type' provides a way to associate a specific Ontology to a Twin
         # In this example our Twin virtualises a thermometer, so in order to be
         # globally (by humans and machines) and uniquely recognised as such, we can use
         # a publicly available Ontology.
-        create_property(key=DEFINES, value=THERMOMETER, is_uri=True),
+        create_property(key=TYPE, value=THERMOMETER, is_uri=True),
     ]
 
     feed_id: str = "temperature"
