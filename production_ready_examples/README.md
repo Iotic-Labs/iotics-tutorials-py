@@ -16,8 +16,9 @@ This module provides an example of a Follower Connector that searches for Sensor
 
 This module provides a set of Classes and functions to simplify the development of the Connectors.
 
-## Set-up
+## Set-up and Execution
 
+Set all the env variables of the `.env` file within the `docker` directory.
 Each example is dockerised to facilitate their deployment and execution within a production environment. The execution of the aforementioned Connectors is facilitated through the use of `make` commands as follows.
 
 ### Publisher Connector
