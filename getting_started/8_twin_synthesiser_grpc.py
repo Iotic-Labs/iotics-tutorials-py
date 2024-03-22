@@ -7,14 +7,13 @@ Run this script while running an instance of the Twin Publisher (exercise #3).
 import json
 
 import grpc
-
 from helpers.constants import (
     CELSIUS_DEGREES,
     CREATED_BY,
-    DEFINES,
     INDEX_URL,
     LABEL,
     THERMOMETER,
+    TYPE,
     USER_KEY_NAME,
     USER_SEED,
 )
@@ -111,7 +110,7 @@ def main():
 
     # We now need to search for the Twin Publisher implemented in exercise #3
     search_criteria = iotics_api.get_search_payload(
-        properties=[create_property(key=DEFINES, value=THERMOMETER, is_uri=True)],
+        properties=[create_property(key=TYPE, value=THERMOMETER, is_uri=True)],
         text="publisher",
         response_type="FULL",
     )

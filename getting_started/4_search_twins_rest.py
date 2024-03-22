@@ -7,9 +7,10 @@ from datetime import datetime, timedelta, timezone
 from typing import List
 
 from helpers.constants import (
+    CREATED_BY,
     INDEX_URL,
-    DEFINES,
     THERMOMETER,
+    TYPE,
     USER_KEY_NAME,
     USER_SEED,
 )
@@ -84,10 +85,11 @@ def main():
         "filter": {
             "text": "publisher",
             "properties": [
+                {"key": TYPE, "uriValue": {"value": THERMOMETER}},
                 {
-                    "key": DEFINES,
-                    "uriValue": {"value": THERMOMETER},
-                }
+                    "key": CREATED_BY,
+                    "stringLiteralValue": {"value": "Michael Joseph Jackson"},
+                },
             ],
         },
     }

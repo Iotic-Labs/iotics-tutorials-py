@@ -7,23 +7,22 @@ import json
 from time import sleep
 from typing import List
 
-from iotics.lib.identity.api.high_level_api import (
-    HighLevelIdentityApi,
-    RegisteredIdentity,
-    get_rest_high_level_identity_api,
-)
-
 from helpers.constants import (
-    INDEX_URL,
     CREATED_BY,
-    DEFINES,
+    INDEX_URL,
     LABEL,
     LIGHT_BULB,
+    TYPE,
     USER_KEY_NAME,
     USER_SEED,
 )
 from helpers.stomp_client import StompClient
 from helpers.utilities import make_api_call
+from iotics.lib.identity.api.high_level_api import (
+    HighLevelIdentityApi,
+    RegisteredIdentity,
+    get_rest_high_level_identity_api,
+)
 
 HOST_URL: str = ""
 
@@ -87,10 +86,7 @@ def main():
         },
         # In this example we are virtualising a Light Bulb. So we can use a public ontology
         # that defines the unique meaning of such an object.
-        {
-            "key": DEFINES,
-            "uriValue": {"value": LIGHT_BULB},
-        },
+        {"key": TYPE, "uriValue": {"value": LIGHT_BULB}},
     ]
 
     input_id: str = "turn_on"

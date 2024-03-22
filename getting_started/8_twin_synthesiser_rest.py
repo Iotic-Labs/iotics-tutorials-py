@@ -10,25 +10,24 @@ from datetime import datetime, timedelta, timezone
 from time import sleep
 from typing import List
 
+from helpers.constants import (
+    CELSIUS_DEGREES,
+    CREATED_BY,
+    INDEX_URL,
+    LABEL,
+    THERMOMETER,
+    TYPE,
+    USER_KEY_NAME,
+    USER_SEED,
+)
+from helpers.stomp_client import StompClient
+from helpers.utilities import make_api_call
 from iotics.lib.identity.api.high_level_api import (
     HighLevelIdentityApi,
     RegisteredIdentity,
     get_rest_high_level_identity_api,
 )
 from requests import request
-
-from helpers.constants import (
-    INDEX_URL,
-    CREATED_BY,
-    DEFINES,
-    LABEL,
-    THERMOMETER,
-    CELSIUS_DEGREES,
-    USER_KEY_NAME,
-    USER_SEED,
-)
-from helpers.stomp_client import StompClient
-from helpers.utilities import make_api_call
 
 HOST_URL: str = ""
 
@@ -193,7 +192,9 @@ class TwinSynthesiserRestExample:
         print(f"Waiting for data from feed {feed_id}...")
 
         # Use the STOMP Client to subscribe to the Feed
-        subscribe_to_feed_endpoint: str = f"/qapi/twins/{twin_follower_did}/interests/twins/{twin_publisher_did}/feeds/{feed_id}"
+        subscribe_to_feed_endpoint: str = (
+            f"/qapi/twins/{twin_follower_did}/interests/twins/{twin_publisher_did}/feeds/{feed_id}"
+        )
         self._stomp_client.subscribe(
             topic=subscribe_to_feed_endpoint,
             subscription_id=f"{twin_publisher_did}-{feed_id}",
@@ -284,12 +285,7 @@ def main():
         "responseType": "FULL",
         "filter": {
             "text": "publisher",
-            "properties": [
-                {
-                    "key": DEFINES,
-                    "uriValue": {"value": THERMOMETER},
-                }
-            ],
+            "properties": [{"key": TYPE, "uriValue": {"value": THERMOMETER}}],
         },
     }
 

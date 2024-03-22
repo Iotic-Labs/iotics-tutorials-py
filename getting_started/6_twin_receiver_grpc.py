@@ -8,7 +8,7 @@ from time import sleep
 
 from helpers.constants import (
     CREATED_BY,
-    DEFINES,
+    TYPE,
     INDEX_URL,
     LABEL,
     LIGHT_BULB,
@@ -84,7 +84,7 @@ def main():
         create_property(key=CREATED_BY, value="Michael Joseph Jackson"),
         # In this example we are virtualising a Light Bulb. So we can use a public ontology
         # that defines the unique meaning of such an object.
-        create_property(key=DEFINES, value=LIGHT_BULB, is_uri=True),
+        create_property(key=TYPE, value=LIGHT_BULB, is_uri=True),
     ]
 
     input_id: str = "turn_on"

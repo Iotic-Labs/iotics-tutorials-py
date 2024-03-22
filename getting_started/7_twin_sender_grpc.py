@@ -11,7 +11,7 @@ from time import sleep
 from helpers.constants import (
     INDEX_URL,
     CREATED_BY,
-    DEFINES,
+    TYPE,
     LABEL,
     MOTION_SENSOR,
     LIGHT_BULB,
@@ -80,7 +80,7 @@ def main():
         create_property(key=CREATED_BY, value="Michael Joseph Jackson"),
         # In this example we want to virtualise a motion sensor, so we can use as a Twin Property
         # any Ontology that represents such an object
-        create_property(key=DEFINES, value=MOTION_SENSOR, is_uri=True),
+        create_property(key=TYPE, value=MOTION_SENSOR, is_uri=True),
     ]
 
     # Use the Upsert Twin operation
@@ -92,7 +92,7 @@ def main():
     # (our Twin Receiver represents a Light Bulb) along with the additional keyword of 'receiver'.
     # Be aware even one of the 2 the search criteria can be enough to retrieve the Twin you are looking for.
     search_criteria = iotics_api.get_search_payload(
-        properties=[create_property(key=DEFINES, value=LIGHT_BULB, is_uri=True)],
+        properties=[create_property(key=TYPE, value=LIGHT_BULB, is_uri=True)],
         text="receiver",
         response_type="FULL",
     )
