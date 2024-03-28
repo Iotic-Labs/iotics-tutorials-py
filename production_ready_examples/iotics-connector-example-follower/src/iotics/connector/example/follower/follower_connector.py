@@ -181,6 +181,8 @@ class FollowerConnector:
             publisher_feed_id,
         )
 
+        unexpected_exception_counter: int = 0
+
         while True:
             log.debug("Generating a new feed_listener...")
             feed_listener = retry_on_exception(
@@ -210,13 +212,18 @@ class FollowerConnector:
                         publisher_twin_did, publisher_feed_id, feed_data_payload
                     )
             except grpc.RpcError as grpc_ex:
-                # Exit the infinite loop in case of an unexpected exception
+                # Any time the token expires, an expected gRPC exception is raised
+                # and a new 'feed_listener' object needs to be generated.
                 if not expected_grpc_exception(
                     exception=grpc_ex, operation="feed_listener"
                 ):
-                    break
+                    unexpected_exception_counter += 1
             except Exception as gen_ex:
                 log.exception("General exception in 'feed_listener': %s", gen_ex)
+                unexpected_exception_counter += 1
+
+            if unexpected_exception_counter > constant.RETRYING_ATTEMPTS:
+                break
 
         log.debug("Exiting thread...")
 

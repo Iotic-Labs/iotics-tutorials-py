@@ -11,12 +11,6 @@ from identity import Identity
 from iotics.api import search_pb2
 from iotics.lib.grpc.iotics_api import IoticsApi
 
-logging.basicConfig(
-    level=logging.getLevelName("INFO"),
-    format="[%(asctime)s]: %(message)s",
-    handlers=[logging.StreamHandler(stream=sys.stdout)],
-)
-
 log = logging.getLogger(__name__)
 
 
@@ -146,7 +140,7 @@ def expected_grpc_exception(exception, operation: str) -> bool:
         log.debug("Expected exception raised in '%s': %s", operation, exception)
         expected_exception = True
     else:
-        log.exception("Unexpected exception raised in '%s': %s", operation, exception)
+        log.warning("Unexpected exception raised in '%s': %s", operation, exception)
 
     return expected_exception
 
@@ -175,8 +169,7 @@ def retry_on_exception(
                 operation_result = grpc_operation(*args, **kwargs)
         except grpc.RpcError as ex:
             if not expected_grpc_exception(exception=ex, operation=function_name):
-                break
-            log.debug("Attempt #%d", attempt + 1)
+                log.warning("Retry attempt #%d", attempt + 1)
         else:
             operation_successful = True
             break
@@ -185,7 +178,7 @@ def retry_on_exception(
         retry_sleep_time += 2
 
     if not operation_successful:
-        log.error("Reached maximum number of retries. Exiting thread..")
+        log.exception("Reached maximum number of retries. Exiting thread..")
         sys.exit(1)
 
     return operation_result
