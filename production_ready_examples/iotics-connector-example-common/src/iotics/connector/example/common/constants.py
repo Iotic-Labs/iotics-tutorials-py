@@ -3,7 +3,7 @@ TOKEN_REFRESH_PERIOD_PERCENT = 0.75
 RETRYING_ATTEMPTS = 3
 RETRY_SLEEP_TIME = 3
 
-# TWIN PROPERTY KEYS
+# Twin Property Keys
 PROPERTY_KEY_LABEL = "http://www.w3.org/2000/01/rdf-schema#label"
 PROPERTY_KEY_COMMENT = "http://www.w3.org/2000/01/rdf-schema#comment"
 PROPERTY_KEY_CREATED_BY = "https://data.iotics.com/app#createdBy"
@@ -13,14 +13,14 @@ PROPERTY_KEY_HOST_METADATA_ALLOW_LIST = (
     "http://data.iotics.com/public#hostMetadataAllowList"
 )
 
-# COMMON CONSTS
+# Common Consts
 PROPERTY_VALUE_CREATED_BY_NAME = "Michael Joseph Jackson"
 
-# GEO COORDINATES
+# Geo Coordinates
 LONDON_LAT = 51.5
 LONDON_LON = -0.1
 
-# PUBLISHER CONNECTOR CONSTS
+# Publisher Connector Consts
 TEMPERATURE_FEED_ID = "temperature"
 HUMIDITY_FEED_ID = "humidity"
 SENSOR_FEED_VALUE = "reading"
@@ -32,9 +32,28 @@ MAX_TEMP_VALUE = 30
 MIN_HUM_VALUE = 0
 MAX_HUM_VALUE = 100
 
-# VALUE UNITS
+# Value Units
 CELSIUS_DEGREES = "http://qudt.org/vocab/unit/DEG_C"
 PERCENT = "http://qudt.org/vocab/unit/PERCENT"
 
-# ONTOLOGIES
+# Ontologies
 SENSOR = "https://www.wikidata.org/wiki/Q167676"
+TEMPERATURE = "https://www.wikidata.org/wiki/Q11466"
+HUMIDITY = "https://www.wikidata.org/wiki/Q180600"
+
+# Logging Configurations
+LOGGING_LEVEL = "INFO"
+LOGGING_CONFIGURATION = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"simple": {"format": "[%(asctime)s] %(levelname)s: %(message)s"}},
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "level": LOGGING_LEVEL,
+            "formatter": "simple",
+            "stream": "ext://sys.stdout",
+        }
+    },
+    "root": {"level": LOGGING_LEVEL, "handlers": ["console"]},
+}

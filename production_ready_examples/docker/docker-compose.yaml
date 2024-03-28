@@ -3,6 +3,12 @@ version: "3.9"
 
 name: "iotics-connector-example"
 
+x-common-logging:
+  driver: "json-file"
+  options:
+    max-size: "100m"
+    max-file: "3"
+
 services:
   # Publisher Connector
   publisher:

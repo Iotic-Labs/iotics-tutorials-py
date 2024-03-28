@@ -111,6 +111,9 @@ class PublisherConnector:
         # Set-up Temperature Feed's Metadata
         temperature_feed_properties = [
             create_property(
+                key=constant.PROPERTY_KEY_TYPE, value=constant.TEMPERATURE, is_uri=True
+            ),
+            create_property(
                 key=constant.PROPERTY_KEY_LABEL, value="Temperature", language="en"
             ),
             create_property(
@@ -130,6 +133,9 @@ class PublisherConnector:
 
         # Set-up Humidity Feed's Metadata
         humidity_feed_properties = [
+            create_property(
+                key=constant.PROPERTY_KEY_TYPE, value=constant.HUMIDITY, is_uri=True
+            ),
             create_property(
                 key=constant.PROPERTY_KEY_LABEL, value="Humidity", language="en"
             ),

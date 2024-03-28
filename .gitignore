@@ -1,4 +1,3 @@
-/examples/docker/.env
 /env/
 /iotics_tutorials/
 /src/iotics_grpc_client.egg-info/
@@ -7,4 +6,4 @@ __pycache__
 iotic.web.stomp*
 .mypy*
 .vscode
-./production_ready_examples/docker/.env
+/production_ready_examples/docker/.env

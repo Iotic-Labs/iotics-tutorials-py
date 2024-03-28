@@ -56,3 +56,7 @@ When developing your Connector we recommend the following best practices:
   - The DB connection is down.
 - [ ] **Comprehensive code documentation**: to enable other developers to understand and debug the code with ease.
 - [ ] **Dockerise Connectors**: to be deployed and executed more easily.
+
+## Changelog
+
+Any notable changes made to these examples will be documented in [CHANGELOG.md](./CHANGELOG.md).
