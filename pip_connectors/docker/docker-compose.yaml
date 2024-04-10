@@ -1,0 +1,28 @@
+---
+version: "3.9"
+
+name: "pip-connector-seachange"
+
+x-common-logging:
+  driver: "json-file"
+  options:
+    max-size: "100m"
+    max-file: "3"
+
+services:
+  # Vessel Movement Connector
+  vesselmovement:
+    container_name: "vesselmovement"
+    environment:
+      - TZ=Europe/London
+    build:
+      context: ".."
+      dockerfile: "pip-connector-seachange-vesselmovement/Dockerfile"
+    command: "python3 /home/pip/app/main.py"
+    env_file:
+      - ".env"
+    networks: ["connector-seachange"]
+  
+networks:
+  connector-seachange:
+    name: "pip-connector-seachange"
