@@ -136,6 +136,7 @@ def expected_grpc_exception(exception, operation: str) -> bool:
         grpc.StatusCode.UNAVAILABLE,
         grpc.StatusCode.UNAUTHENTICATED,
         grpc.StatusCode.CANCELLED,
+        grpc.StatusCode.DEADLINE_EXCEEDED,
     ]:
         log.debug("Expected exception raised in '%s': %s", operation, exception)
         expected_exception = True

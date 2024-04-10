@@ -8,13 +8,13 @@ else
 endif
 
 pip-vesselmovement-run:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build vesselmovement
+	$(Q) docker compose -f docker/docker-compose.yaml up --build vesselmovement
 
 pip-vesselmovement-run-detached:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build vesselmovement -d
+	$(Q) docker compose -f docker/docker-compose.yaml up --build vesselmovement -d
 
 pip-vesselmovement-logs:
-	$(Q) docker-compose -f docker/docker-compose.yaml logs vesselmovement -f
+	$(Q) docker compose -f docker/docker-compose.yaml logs vesselmovement -f
 
 pip-vesselmovement-down:
-	$(Q) docker-compose -f docker/docker-compose.yaml down vesselmovement
+	$(Q) docker compose -f docker/docker-compose.yaml down vesselmovement
