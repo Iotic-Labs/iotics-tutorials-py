@@ -98,7 +98,9 @@ def search_twins(
             except grpc.RpcError as ex:
                 if not expected_grpc_exception(exception=ex, operation="search_twins"):
                     break
+
                 log.debug("Attempt #%d", attempt + 1)
+                sleep(constant.RETRY_SLEEP_TIME)
             else:
                 break
 
