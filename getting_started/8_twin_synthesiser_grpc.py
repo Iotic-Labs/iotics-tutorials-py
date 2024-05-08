@@ -5,6 +5,7 @@ Run this script while running an instance of the Twin Publisher (exercise #3).
 """
 
 import json
+from threading import Thread
 
 import grpc
 from helpers.constants import (
@@ -110,7 +111,10 @@ def main():
 
     # We now need to search for the Twin Publisher implemented in exercise #3
     search_criteria = iotics_api.get_search_payload(
-        properties=[create_property(key=TYPE, value=THERMOMETER, is_uri=True)],
+        properties=[
+            create_property(key=TYPE, value=THERMOMETER, is_uri=True),
+            create_property(key=CREATED_BY, value="Michael Joseph Jackson"),
+        ],
         text="publisher",
         response_type="FULL",
     )
@@ -125,55 +129,77 @@ def main():
     print(f"Found {len(twins_found_list)} Twin(s) based on the search criteria")
     print("---")
 
-    # Hopefully there will be only 1 Twin returned by the Search operation
-    twin_of_interest = next(iter(twins_found_list))
-    # As always, in order to subscribe to a Twin's Feed we need Twin ID and Feed ID
-    publisher_twin_id = twin_of_interest.twinId.id
-    twin_feeds = twin_of_interest.feeds
+    def compute_average(
+        feed_listener,
+        publisher_twin_id,
+        publisher_feed_id,
+        twin_synthesiser_did,
+        synthesiser_feed_id,
+    ):
+        print(
+            f"Waiting for data from Twin {publisher_twin_id} Feed '{publisher_feed_id}'..."
+        )
 
-    feed_of_interest = next(iter(twin_feeds))
-    publisher_feed_id = feed_of_interest.feedId.id
+        # The following variables will be used to store the values needed to compute the average
+        sample_count: int = 1
+        previous_mean: float = 0
 
-    # Let's create a Feed listener to wait for new data
-    feed_listener = iotics_api.fetch_interests(
-        follower_twin_did=twin_synthesiser_did,
-        followed_twin_did=publisher_twin_id,
-        followed_feed_id=publisher_feed_id,
-    )
+        try:
+            for latest_feed_data in feed_listener:
+                # The following variable includes the (temperature) data sent by the Twin Publisher
+                data_received: dict = json.loads(latest_feed_data.payload.feedData.data)
+                print(f"Received Feed data {data_received}")
 
-    print(f"Waiting for data from feed {publisher_feed_id}...")
+                # Compute the average of the temperatures received so far
+                new_sample = data_received.get("reading")
+                new_mean = (
+                    (sample_count - 1) * previous_mean + new_sample
+                ) / sample_count
 
-    # The following variables will be used to store the values needed to compute the average
-    sample_count: int = 1
-    previous_mean: float = 0
+                data_to_share: dict = {value_label: new_mean}
+                # Use the Share Feed Data operation
+                iotics_api.share_feed_data(
+                    twin_did=twin_synthesiser_did,
+                    feed_id=synthesiser_feed_id,
+                    data=data_to_share,
+                )
 
-    try:
-        for latest_feed_data in feed_listener:
-            # The following variable includes the (temperature) data sent by the Twin Publisher
-            data_received: dict = json.loads(latest_feed_data.payload.feedData.data)
-            print(f"Received Feed data {data_received}")
+                print(
+                    f"Shared {data_to_share} from Twin {twin_synthesiser_did} via Feed '{synthesiser_feed_id}'"
+                )
 
-            # Compute the average of the temperatures received so far
-            new_sample = data_received.get("reading")
-            new_mean = ((sample_count - 1) * previous_mean + new_sample) / sample_count
+                # Update the average
+                sample_count += 1
+                previous_mean = new_mean
+        except grpc._channel._MultiThreadedRendezvous:
+            print("Token expired")
 
-            data_to_share: dict = {value_label: new_mean}
-            # Use the Share Feed Data operation
-            iotics_api.share_feed_data(
-                twin_did=twin_synthesiser_did,
-                feed_id=synthesiser_feed_id,
-                data=data_to_share,
-            )
+    for twin in twins_found_list:
+        # As always, in order to subscribe to a Twin's Feed we need Twin ID and Feed ID
+        publisher_twin_id = twin.twinId.id
+        twin_feeds = twin.feeds
 
-            print(
-                f"Shared {data_to_share} from Twin {twin_synthesiser_did} via Feed {synthesiser_feed_id}"
-            )
+        feed_of_interest = next(iter(twin_feeds))
+        publisher_feed_id = feed_of_interest.feedId.id
 
-            # Update the average
-            sample_count += 1
-            previous_mean = new_mean
-    except grpc._channel._MultiThreadedRendezvous:
-        print("Token expired")
+        # Let's create a Feed listener to wait for new data
+        feed_listener = iotics_api.fetch_interests(
+            follower_twin_did=twin_synthesiser_did,
+            followed_twin_did=publisher_twin_id,
+            followed_feed_id=publisher_feed_id,
+        )
+
+        Thread(
+            target=compute_average,
+            args=[
+                feed_listener,
+                publisher_twin_id,
+                publisher_feed_id,
+                twin_synthesiser_did,
+                synthesiser_feed_id,
+            ],
+        ).start()
+
 
 
 if __name__ == "__main__":

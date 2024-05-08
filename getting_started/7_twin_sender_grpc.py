@@ -6,7 +6,10 @@ Run this script while running an instance of the Twin Receiver (exercise #6).
 """
 
 from random import randint
+from threading import Thread
 from time import sleep
+
+import grpc
 
 from helpers.constants import (
     INDEX_URL,
@@ -90,9 +93,12 @@ def main():
     # We now need to search for the Twin Receiver.
     # To do that we can use the specific property that defines the Ontology of a Light Bulb
     # (our Twin Receiver represents a Light Bulb) along with the additional keyword of 'receiver'.
-    # Be aware even one of the 2 the search criteria can be enough to retrieve the Twin you are looking for.
+    # Be aware that the aforementioned search criteria might not be enough to retrieve the Twin you are looking for.
     search_criteria = iotics_api.get_search_payload(
-        properties=[create_property(key=TYPE, value=LIGHT_BULB, is_uri=True)],
+        properties=[
+            create_property(key=TYPE, value=LIGHT_BULB, is_uri=True),
+            create_property(key=CREATED_BY, value="Michael Joseph Jackson"),
+        ],
         text="receiver",
         response_type="FULL",
     )
@@ -107,51 +113,44 @@ def main():
     print(f"Found {len(twins_found_list)} Twin(s) based on the search criteria")
     print("---")
 
-    # Let's get the first Twin of the list (hopefully it should be the one created in exercise #6)
-    twin_of_interest = next(iter(twins_found_list))
-    # In order to send Input messages we need 3 info:
-    # 1. the Twin Receiver ID;
-    # 2. the Input ID;
-    # 3. although it's not checked (no error is raised), we also need the Input's Value's label
-    twin_receiver_did: str = twin_of_interest.twinId.id
-    twin_inputs = twin_of_interest.inputs
+    def send_input_message(twin_sender_did: str, twin_receiver_did: str, input_id: str):
+        while True:
+            try:
+                # We want to generate a random boolean that simulates the motion sensor
+                rand_motion_detection: bool = bool(randint(0, 1))
+                message_to_send: dict = {"turn_on": rand_motion_detection}
 
-    # Let's get the only Input the Twin Receiver includes
-    input_of_interest = next(iter(twin_inputs))
-    input_id: str = input_of_interest.inputId.id
-    # Unfortunately, even the 'FULL' result of a Twin Search operation doesn't give us the description of
-    # a Twin's Input. This means, in order to get the Input's Value's label (the 3rd info we need)
-    # we need to perform an additional operation, namely the Describe Input.
-    input_description = iotics_api.describe_input(
-        twin_did=twin_receiver_did, input_id=input_id
-    )
+                # Use the Send Input message operation
+                iotics_api.send_input_message(
+                    sender_twin_did=twin_sender_did,
+                    receiver_twin_did=twin_receiver_did,
+                    input_id=input_id,
+                    message=message_to_send,
+                )
 
-    input_values = input_description.payload.result.values
+                print(
+                    f"Sent Input message {message_to_send} to Input '{input_id}' of Twin {twin_receiver_did}"
+                )
+                sleep(5)
+            except grpc._channel._InactiveRpcError:
+                print("Token expired - exiting")
+                break
 
-    # Take the first (and only) Input's Value of the list
-    value_of_interest = next(iter(input_values))
-    value_label = value_of_interest.label
+    for twin in twins_found_list:
+        # In order to send Input messages we need 3 info:
+        # 1. the Twin Receiver ID;
+        # 2. the Input ID;
+        # 3. although it's not checked (no error is raised), we also need the Input's Value's label
+        twin_receiver_did = twin.twinId.id
+        twin_inputs = twin.inputs
 
-    while True:
-        try:
-            # We want to generate a random boolean that simulates the motion sensor
-            rand_motion_detection: bool = bool(randint(0, 1))
-            message_to_send: dict = {value_label: rand_motion_detection}
+        for twin_input in twin_inputs:
+            input_id: str = twin_input.inputId.id
 
-            # Use the Send Input message operation
-            iotics_api.send_input_message(
-                sender_twin_did=twin_sender_did,
-                receiver_twin_did=twin_receiver_did,
-                input_id=input_id,
-                message=message_to_send,
-            )
-
-            print(
-                f"Sent Input message {message_to_send} from Twin {twin_sender_did} to Input '{input_id}' of Twin {twin_receiver_did}"
-            )
-            sleep(5)
-        except KeyboardInterrupt:
-            break
+            Thread(
+                target=send_input_message,
+                args=[twin_sender_did, twin_receiver_did, input_id],
+            ).start()
 
 
 if __name__ == "__main__":

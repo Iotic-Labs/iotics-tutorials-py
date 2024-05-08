@@ -4,7 +4,8 @@ with an Input that waits for Input messages.
 
 import json
 from threading import Thread
-from time import sleep
+
+import grpc
 
 from helpers.constants import (
     CREATED_BY,
@@ -120,9 +121,13 @@ def main():
         # then simply decode it and print it on screen.
         print(f"Waiting for Input data from input {input_id}...")
 
-        for latest_input_data in input_listener:
-            data_received = json.loads(latest_input_data.payload.message.data)
-            print(f"Received Input data {data_received}")
+        try:
+            for latest_input_data in input_listener:
+                data_received = json.loads(latest_input_data.payload.message.data)
+                print(f"Received Input data {data_received} from Input '{input_id}'")
+        # The following exception is raised in 'input_listener' when the token expires
+        except grpc._channel._MultiThreadedRendezvous:
+            print("Token expired - exiting")
 
     # Although our Twin has just 1 Input, for completeness we can scan the entire inputs list
     # and subscribe to each one of them
@@ -133,16 +138,7 @@ def main():
             twin_did=twin_receiver_did, input_id=input_id
         )
 
-        Thread(
-            target=get_input_data, args=[input_listener, input_id], daemon=True
-        ).start()
-
-    # We now just need to wait for incoming messages sent by the Twin Sender
-    while True:
-        try:
-            sleep(5)
-        except KeyboardInterrupt:
-            break
+        Thread(target=get_input_data, args=[input_listener, input_id]).start()
 
 
 if __name__ == "__main__":

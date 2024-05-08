@@ -8,6 +8,7 @@ from random import randint
 from time import sleep
 from typing import List
 
+import grpc
 from helpers.constants import (
     CELSIUS_DEGREES,
     CREATED_BY,
@@ -209,6 +210,10 @@ def main():
 
             sleep(5)
         except KeyboardInterrupt:
+            break
+        # The following exception is raised when the token expires
+        except grpc._channel._InactiveRpcError:
+            print("Token expired - exiting")
             break
 
 
