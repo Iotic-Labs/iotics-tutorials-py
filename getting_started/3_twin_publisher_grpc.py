@@ -5,6 +5,8 @@ that virtualises a Temperature sensor and shares a random integer every 5 second
 from random import randint
 from time import sleep
 
+import grpc
+
 from helpers.constants import (
     CELSIUS_DEGREES,
     CREATED_BY,
@@ -183,6 +185,9 @@ def main():
 
             sleep(5)
         except KeyboardInterrupt:
+            break
+        except grpc._channel._InactiveRpcError:
+            print("Token expired - exiting")
             break
 
 

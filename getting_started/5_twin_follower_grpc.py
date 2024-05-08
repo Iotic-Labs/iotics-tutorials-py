@@ -7,14 +7,13 @@ Run this script while running an instance of the Twin Publisher (exercise #3).
 
 import json
 from threading import Thread
-from time import sleep
 
 import grpc
 from helpers.constants import (
     CREATED_BY,
-    TYPE,
     INDEX_URL,
     THERMOMETER,
+    TYPE,
     USER_KEY_NAME,
     USER_SEED,
 )
@@ -113,21 +112,19 @@ def main():
             for latest_feed_data in feed_listener:
                 feed_data_payload = latest_feed_data.payload
                 followed_twin_id = feed_data_payload.interest.followedFeedId.twinId
-                follower_twin_id = feed_data_payload.interest.followerTwinId.id
                 followed_feed_id = feed_data_payload.interest.followedFeedId.id
                 received_data = json.loads(feed_data_payload.feedData.data)
-                occurred_at = feed_data_payload.feedData.occurredAt
                 # When a new data sample is received (in other words sent by the Twin Publisher),
                 # we simply decode it and print it on screen.
                 # In advanced applications, this section will contain the logic
                 # you want to trigger whenever a new data sample is received (see exercise #8).
                 print(
-                    f"Received Feed data {received_data} published by Twin {followed_twin_id} via Feed {followed_feed_id}"
+                    f"Received Feed data {received_data} published by Twin {followed_twin_id} via Feed '{followed_feed_id}'"
                 )
 
         # The following exception is raised in 'feed_listener' when the token expires
         except grpc._channel._MultiThreadedRendezvous:
-            print("Token expired")
+            print("Token expired - exiting")
 
     # Although for this exercise the Search operation might have returned only the Twin Publisher
     # implemented in exercise #3, for completeness we want to scan over the entire list of Twins found.
@@ -156,14 +153,7 @@ def main():
 
             # Since the 'fetch_interests' returns a blocking function, we can create a Thread
             # to handle the receival of data samples from it so that we can perform other duties.
-            Thread(target=get_feed_data, args=[feed_listener], daemon=True).start()
-
-    # We now just need to wait for new data sent by the Twin Publisher
-    while True:
-        try:
-            sleep(5)
-        except KeyboardInterrupt:
-            break
+            Thread(target=get_feed_data, args=[feed_listener]).start()
 
 
 if __name__ == "__main__":
