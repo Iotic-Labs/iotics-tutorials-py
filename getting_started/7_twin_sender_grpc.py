@@ -93,7 +93,7 @@ def main():
     # We now need to search for the Twin Receiver.
     # To do that we can use the specific property that defines the Ontology of a Light Bulb
     # (our Twin Receiver represents a Light Bulb) along with the additional keyword of 'receiver'.
-    # Be aware even one of the 2 the search criteria can be enough to retrieve the Twin you are looking for.
+    # Be aware that the aforementioned search criteria might not be enough to retrieve the Twin you are looking for.
     search_criteria = iotics_api.get_search_payload(
         properties=[
             create_property(key=TYPE, value=LIGHT_BULB, is_uri=True),

@@ -186,6 +186,7 @@ def main():
             sleep(5)
         except KeyboardInterrupt:
             break
+        # The following exception is raised when the token expires
         except grpc._channel._InactiveRpcError:
             print("Token expired - exiting")
             break

@@ -109,7 +109,7 @@ def main():
     # We now need to search for the Twin Receiver.
     # To do that we can use the specific property that defines the Ontology of a Light Bulb
     # (our Twin Receiver represents a Light Bulb) along with the additional keyword of 'receiver'.
-    # Be aware even one of the 2 the search criteria can be enough to retrieve the Twin you are looking for.
+    # Be aware that the aforementioned search criteria might not be enough to retrieve the Twin you are looking for.
     search_headers: dict = headers.copy()
     search_headers.update(
         {
@@ -123,7 +123,13 @@ def main():
         "responseType": "FULL",
         "filter": {
             "text": "receiver",
-            "properties": [{"key": TYPE, "uriValue": {"value": LIGHT_BULB}}],
+            "properties": [
+                {"key": TYPE, "uriValue": {"value": LIGHT_BULB}},
+                {
+                    "key": CREATED_BY,
+                    "stringLiteralValue": {"value": "Michael Joseph Jackson"},
+                },
+            ],
         },
     }
 

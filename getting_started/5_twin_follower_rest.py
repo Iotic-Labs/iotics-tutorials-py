@@ -148,11 +148,8 @@ def main():
         try:
             # 'time' includes the datetime the data was shared by the Twin Publisher
             followed_twin_id = encoded_data["interest"]["followedFeedId"]["twinId"]
-            follower_twin_id = encoded_data["interest"]["followerTwinId"]["id"]
             followed_feed_id = encoded_data["interest"]["followedFeedId"]["id"]
             received_data = encoded_data["feedData"]["data"]
-            mime_type = encoded_data["feedData"]["mime"]
-            occurred_at = encoded_data["feedData"]["occurredAt"]
         except KeyError:
             print("No data")
         else:
@@ -164,7 +161,7 @@ def main():
                 base64.b64decode(received_data).decode("ascii")
             )
             print(
-                f"Received Feed data {received_data} published by Twin {followed_twin_id} via Feed {followed_feed_id}"
+                f"Received Feed data {decoded_feed_data} published by Twin {followed_twin_id} via Feed '{followed_feed_id}'"
             )
 
     # In order to subscribe to a Feed (or an Input) via REST, the only way is to use STOMP.

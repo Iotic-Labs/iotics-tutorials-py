@@ -285,7 +285,13 @@ def main():
         "responseType": "FULL",
         "filter": {
             "text": "publisher",
-            "properties": [{"key": TYPE, "uriValue": {"value": THERMOMETER}}],
+            "properties": [
+                {"key": TYPE, "uriValue": {"value": THERMOMETER}},
+                {
+                    "key": CREATED_BY,
+                    "stringLiteralValue": {"value": "Michael Joseph Jackson"},
+                },
+            ],
         },
     }
 
