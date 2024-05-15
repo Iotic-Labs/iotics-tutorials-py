@@ -12,7 +12,7 @@ Initialises the **DataProcessor** and **FollowerConnector** classes and starts t
 
 ## How to access the DB
 
-1. Identity the container id that is in use by postgres:
+1. Identify the container id that is in use by postgres:
 ```bash
 $ docker ps
 ```
