@@ -6,4 +6,5 @@ __pycache__
 iotic.web.stomp*
 .mypy*
 .vscode
-/production_ready_examples/docker/.env
+/production_ready_examples/docker/.env.sample
+

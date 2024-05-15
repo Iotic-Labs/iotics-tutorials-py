@@ -10,7 +10,7 @@ This module provides an example of a Publisher Connector that simulates the crea
 
 ### iotics-connector-example-follower
 
-This module provides an example of a Follower Connector that searches for Sensor Twins with the purpose of receiving Feed's data about Temperature and Humidity. A Twin Follower is created for this purpose which waits for new data samples to be received. Overall, this module demonstrates how a follower connector can interact with sensor twins, receive feed data, and process it accordingly.
+This module provides an example of a Follower Connector that searches for Sensor Twins with the goal of storing Feed's data about Temperature and Humidity into a Database. A Twin Follower is created which waits for new data samples to be received. Overall, this module demonstrates how a follower connector can interact with sensor twins, receive feed data, and process it accordingly.
 
 ### iotics-connector-example-common
 

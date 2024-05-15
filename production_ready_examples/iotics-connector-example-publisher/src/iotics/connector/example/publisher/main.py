@@ -8,8 +8,8 @@ config.dictConfig(LOGGING_CONFIGURATION)
 
 
 def main():
-    data_source: DataSource = DataSource()
-    publisher_connector: PublisherConnector = PublisherConnector(data_source)
+    data_source = DataSource()
+    publisher_connector = PublisherConnector(data_source)
     publisher_connector.start()
 
 

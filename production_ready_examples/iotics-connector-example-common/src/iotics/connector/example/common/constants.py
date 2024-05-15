@@ -41,6 +41,9 @@ SENSOR = "https://www.wikidata.org/wiki/Q167676"
 TEMPERATURE = "https://www.wikidata.org/wiki/Q11466"
 HUMIDITY = "https://www.wikidata.org/wiki/Q180600"
 
+# DB settings
+DB_URL = "postgresql://postgres:iotics@postgres:5432/iotics_tutorials"
+
 # Logging Configurations
 LOGGING_LEVEL = "INFO"
 LOGGING_CONFIGURATION = {

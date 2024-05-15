@@ -1,10 +1,6 @@
 # Follower Connector
 
-This module provides an example of a Follower Connector that searches for Sensor Twins with the purpose of receiving Feed's data about Temperature and Humidity. A Twin Follower is created for this purpose which waits for new data samples to be received. Overall, this module demonstrates how a follower connector can interact with sensor twins, receive feed data, and process it accordingly.
-
-## data_processor.py
-
-Defines a **DataProcessor** class that simulates a data processor. It enables data received from a publisher twin and feed to be printed on the screen.
+This module provides an example of a Follower Connector that searches for Sensor Twins with the goal of storing Feed's data about Temperature and Humidity into a Database. A Twin Follower is created which waits for new data samples to be received. Overall, this module demonstrates how a follower connector can interact with sensor twins, receive feed data, and process it accordingly.
 
 ## follower_connector.py
 
@@ -13,3 +9,22 @@ Defines a **FollowerConnector** class that simulates a connector responsible for
 ## main.py
 
 Initialises the **DataProcessor** and **FollowerConnector** classes and starts the follower connector to listen for feed data from sensor twins.
+
+## How to access the DB
+
+1. Identity the container id that is in use by postgres:
+```bash
+$ docker ps
+```
+2. Access the container from terminal:
+```bash
+$ docker exec -it <container_id> bash
+```
+3. Connect to the DB from within the container:
+```bash
+$ psql -U postgres -d iotics_tutorials
+```
+4. Use SQL to interrogate the DB. E.g.:
+```sql
+$ SELECT * FROM "SensorReadings";
+```
