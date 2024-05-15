@@ -8,8 +8,8 @@ config.dictConfig(LOGGING_CONFIGURATION)
 
 
 def main():
-    data_processor: DataProcessor = DataProcessor()
-    follower_connector: FollowerConnector = FollowerConnector(data_processor)
+    data_processor = DataProcessor()
+    follower_connector = FollowerConnector(data_processor)
     follower_connector.start()
 
 

@@ -11,7 +11,6 @@ from iotics.lib.grpc.helpers import create_property
 from iotics.lib.grpc.iotics_api import IoticsApi
 from twin_structure import TwinStructure
 from utilities import (
-    auto_refresh_token,
     expected_grpc_exception,
     get_host_endpoints,
     retry_on_exception,
@@ -61,25 +60,13 @@ class FollowerConnector:
         self._refresh_token_lock = Lock()
         self._threads_list = []
 
+        # Start auto-refreshing token Thread in the background
         Thread(
-            target=auto_refresh_token,
-            args=[self._refresh_token_lock, self._iotics_identity, self._iotics_api],
+            target=self._iotics_identity.auto_refresh_token,
+            args=[self._refresh_token_lock, self._iotics_api],
             name="auto_refresh_token",
             daemon=True,
         ).start()
-
-    def _clear_space(self):
-        """Delete the Follower Twin created by this example."""
-
-        log.info("Deleting Follower Twin...")
-        retry_on_exception(
-            self._iotics_api.delete_twin,
-            "delete_twin",
-            self._refresh_token_lock,
-            twin_did=self._twin_follower_did,
-        )
-
-        log.debug("Twin Follower %s deleted", self._twin_follower_did)
 
     def _setup_twin_structure(self) -> TwinStructure:
         """Define the Twin structure in terms of Twin's metadata.
@@ -208,7 +195,13 @@ class FollowerConnector:
                     )
                     feed_data_payload = latest_feed_data.payload
 
+                    # Print data received on screen
                     self._data_processor.print_on_screen(
+                        publisher_twin_did, publisher_feed_id, feed_data_payload
+                    )
+
+                    # Export data receved to DB
+                    self._data_processor.export_to_db(
                         publisher_twin_did, publisher_feed_id, feed_data_payload
                     )
             except grpc.RpcError as grpc_ex:
@@ -254,9 +247,7 @@ class FollowerConnector:
                 self._threads_list.append(feed_thread)
 
     def start(self):
-        """Create the Twin Follower, search for Sensor Twins and follow their Feeds.
-        When the program terminates, delete the Twin Follower from the Space.
-        """
+        """Create the Twin Follower, search for Sensor Twins and follow their Feeds."""
 
         twin_structure = self._setup_twin_structure()
         self._create_twin(twin_structure)
@@ -265,5 +256,3 @@ class FollowerConnector:
 
         for thread in self._threads_list:
             thread.join()
-
-        self._clear_space()

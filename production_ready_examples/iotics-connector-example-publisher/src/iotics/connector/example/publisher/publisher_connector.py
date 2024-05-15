@@ -14,7 +14,7 @@ from iotics.lib.grpc.helpers import (
 )
 from iotics.lib.grpc.iotics_api import IoticsApi
 from twin_structure import TwinStructure
-from utilities import auto_refresh_token, get_host_endpoints, retry_on_exception
+from utilities import get_host_endpoints, retry_on_exception
 
 log = logging.getLogger(__name__)
 
@@ -60,27 +60,13 @@ class PublisherConnector:
         self._threads_list = []
         self._twins_list = []
 
+        # Start auto-refreshing token Thread in the background
         Thread(
-            target=auto_refresh_token,
-            args=[self._refresh_token_lock, self._iotics_identity, self._iotics_api],
+            target=self._iotics_identity.auto_refresh_token,
+            args=[self._refresh_token_lock, self._iotics_api],
             name="auto_refresh_token",
             daemon=True,
         ).start()
-
-    def _clear_space(self):
-        """Delete all the Sensor Twins created by this example."""
-
-        log.info("Deleting Sensor Twins...")
-
-        for twin_did in self._twins_list:
-            retry_on_exception(
-                self._iotics_api.delete_twin,
-                "delete_twin",
-                self._refresh_token_lock,
-                twin_did=twin_did,
-            )
-
-            log.debug("Deleted Twin DID %s", twin_did)
 
     def _setup_twin_structure(self) -> TwinStructure:
         """Define the Twin structure in terms of Twin's and Feed's metadata.
@@ -272,5 +258,3 @@ class PublisherConnector:
 
         for thread in self._threads_list:
             thread.join()
-
-        self._clear_space()

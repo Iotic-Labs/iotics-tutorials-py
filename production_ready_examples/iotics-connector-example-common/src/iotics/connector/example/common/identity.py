@@ -1,14 +1,17 @@
 import logging
-import sys
 from datetime import datetime, timedelta
-from time import time
+from threading import Lock
+from time import sleep, time
 
+import constants as constant
 from iotics.lib.grpc.auth import AuthInterface
+from iotics.lib.grpc.iotics_api import IoticsApi
 from iotics.lib.identity.api.high_level_api import (
     HighLevelIdentityApi,
     RegisteredIdentity,
     get_rest_high_level_identity_api,
 )
+from utilities import check_global_var
 
 log = logging.getLogger(__name__)
 
@@ -40,12 +43,6 @@ class Identity(AuthInterface):
 
         self._initialise()
 
-    @staticmethod
-    def _check_global_var(var, var_name: str):
-        if not var:
-            logging.error("Parameter %s not set", var_name)
-            sys.exit(1)
-
     def _initialise(self):
         """Check all the env variables have been set properly.
         Then create/retrieve a User and an Agent Identity with auth delegation,
@@ -53,10 +50,10 @@ class Identity(AuthInterface):
         """
 
         log.debug("Initialising Identity...")
-        self._check_global_var(var=self._user_key_name, var_name="USER_KEY_NAME")
-        self._check_global_var(var=self._user_seed, var_name="USER_SEED")
-        self._check_global_var(var=self._agent_key_name, var_name="AGENT_KEY_NAME")
-        self._check_global_var(var=self._agent_seed, var_name="AGENT_SEED")
+        check_global_var(var=self._user_key_name, var_name="USER_KEY_NAME")
+        check_global_var(var=self._user_seed, var_name="USER_SEED")
+        check_global_var(var=self._agent_key_name, var_name="AGENT_KEY_NAME")
+        check_global_var(var=self._agent_seed, var_name="AGENT_SEED")
 
         self._high_level_identity_api = get_rest_high_level_identity_api(
             resolver_url=self._resolver_url
@@ -73,7 +70,7 @@ class Identity(AuthInterface):
 
         log.debug("User and Agent created with auth delegation")
 
-        self.refresh_token()
+        self._refresh_token()
 
     @property
     def user_identity(self) -> RegisteredIdentity:
@@ -97,7 +94,7 @@ class Identity(AuthInterface):
     def get_token(self) -> str:
         return self._token
 
-    def refresh_token(self):
+    def _refresh_token(self):
         """Generate a new IOTICS token that can be used to execute IOTICS operations.
         Update 'token_last_updated' so the auto refresh token mechanism
         is aware of when to generate a new token.
@@ -148,3 +145,23 @@ class Identity(AuthInterface):
         log.debug("Twin Identity %s created with Control delegation", twin_identity.did)
 
         return twin_identity
+
+    def auto_refresh_token(self, refresh_token_lock: Lock, iotics_api: IoticsApi):
+        """Automatically refresh then IOTICS token before it expires.
+
+        Args:
+            refresh_token_lock (Lock): used to prevent race conditions.
+            iotics_api (IoticsApi): the instance of IOTICS gRPC API
+                used to execute Twins operations.
+        """
+
+        token_period = int(self._token_duration * constant.TOKEN_REFRESH_PERIOD_PERCENT)
+
+        while True:
+            time_to_refresh: int = token_period - (time() - self._token_last_updated)
+            sleep(time_to_refresh)
+            with refresh_token_lock:
+                self._refresh_token()
+                iotics_api.update_channel()
+
+            log.debug("Token refreshed correctly")

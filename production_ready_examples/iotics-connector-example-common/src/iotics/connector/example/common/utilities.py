@@ -1,17 +1,23 @@
 import logging
 import sys
 from threading import Lock
-from time import sleep, time
+from time import sleep
 from uuid import uuid4
 
 import constants as constant
 import grpc
 import requests
-from identity import Identity
 from iotics.api import search_pb2
 from iotics.lib.grpc.iotics_api import IoticsApi
 
 log = logging.getLogger(__name__)
+
+
+@staticmethod
+def check_global_var(var, var_name: str):
+    if not var:
+        logging.error("Parameter %s not set", var_name)
+        sys.exit(1)
 
 
 def get_host_endpoints(host_url: str) -> dict:
@@ -38,29 +44,6 @@ def get_host_endpoints(host_url: str) -> dict:
         sys.exit(1)
 
     return req_resp
-
-
-def auto_refresh_token(
-    refresh_token_lock: Lock, identity: Identity, iotics_api: IoticsApi
-):
-    """Automatically refresh then IOTICS token before it expires.
-
-    Args:
-        refresh_token_lock (Lock): used to prevent race conditions.
-        identity (Identity): the instance of Identity API used to manage IOTICS Identities.
-        iotics_api (IoticsApi): the instance of IOTICS gRPC API used to execute Twins operations.
-    """
-
-    token_period = int(identity.token_duration * constant.TOKEN_REFRESH_PERIOD_PERCENT)
-
-    while True:
-        time_to_refresh: int = token_period - (time() - identity.token_last_updated)
-        sleep(time_to_refresh)
-        with refresh_token_lock:
-            identity.refresh_token()
-            iotics_api.update_channel()
-
-        log.debug("Token refreshed correctly")
 
 
 def search_twins(
