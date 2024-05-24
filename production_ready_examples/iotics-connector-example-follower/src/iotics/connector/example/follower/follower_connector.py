@@ -77,6 +77,9 @@ class FollowerConnector:
 
         twin_properties = [
             create_property(
+                key=constant.PROPERTY_KEY_TYPE, value=constant.DATA_STORE, is_uri=True
+            ),
+            create_property(
                 key=constant.PROPERTY_KEY_LABEL, value="Twin Follower", language="en"
             ),
             create_property(
