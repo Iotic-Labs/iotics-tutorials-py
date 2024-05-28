@@ -10,7 +10,11 @@ This module provides an example of a Publisher Connector that simulates the crea
 
 ### iotics-connector-example-follower
 
-This module provides an example of a Follower Connector that searches for Sensor Twins with the goal of storing Feed's data about Temperature and Humidity into a Database. A Twin Follower is created which waits for new data samples to be received. Overall, this module demonstrates how a follower connector can interact with sensor twins, receive feed data, and process it accordingly.
+This module provides an example of a Follower Connector that searches for Sensor Twins with the goal of storing Feed's data about Temperature and Humidity into a Database. A Twin Follower is created which waits for new data samples to be received. Overall, this module demonstrates how a follower connector can interact with sensor twins, receive Feed data and process it accordingly.
+
+### iotics-connector-example-synthesiser
+
+This module provides an example of a Synthesiser Connector that searches for Sensor Twins with the goal of performing computations on the data and sharing the results to the IOTICSpace. Specifically, a Twin Synthesiser with 2 Feeds is created which waits for new data samples to be received. It then periodically computes the average of the received data, along with the Min and Max values. Finally, it shares the synthesised data (Average and Min/Max) via the related Feeds. Overall, this module demonstrates how a Synthesiser Connector can interact with Sensor Twins, receive feed data, process it and share the synthesised data back to an IOTICSpace.
 
 ### iotics-connector-example-common
 
@@ -19,21 +23,15 @@ This module provides a set of Classes and functions to simplify the development 
 ## Set-up and Execution
 
 Set all the env variables of the `.env` file within the `docker` directory.
-Each example is dockerised to facilitate their deployment and execution within a production environment. The execution of the aforementioned Connectors is facilitated through the use of `make` commands as follows.
+Each example is dockerised to facilitate their deployment and execution within a production environment. The execution of the aforementioned Connectors is facilitated through the use of `make` commands as follows (replace `<connector>` with one between `publisher`/`follower`/`synthesiser`):
 
-### Publisher Connector
+- `make example-<connector>-run`: builds and executes a service of the Connector;
+- `make example-<connector>-run-detached`: same as above, in detached mode;
+- `make example-<connector>-logs`: used to see the connector's logs;
+- `make example-<connector>-down`: stops and removes the connector's containers and networks.
+- `example-all-run`: builds and executes a service of **all** Connectors;
+- `example-all-down`: stops and removes **all** connector's containers and networks.
 
-- `make example-publisher-run`: builds and executes a service of a Publisher Connector;
-- `make example-publisher-run-detached`: same as above, in detached mode;
-- `make example-publisher-logs`: used to see the publisher connector's logs;
-- `make example-publisher-down`: stops and removes the publisher connector's containers and networks.
-
-### Follower Connector
-
-- `make example-follower-run`: builds and executes a service of a Follower Connector;
-- `make example-follower-run-detached`: same as above, in detached mode;
-- `make example-follower-logs`: used to see the follower connector's logs;
-- `make example-follower-down`: stops and removes the follower connector's containers and networks.
 
 ## Best Practices
 

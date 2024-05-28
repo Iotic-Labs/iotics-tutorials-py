@@ -31,6 +31,18 @@ example-follower-logs:
 example-follower-down:
 	$(Q) docker-compose -f docker/docker-compose.yaml down follower
 
+example-synthesiser-run:
+	$(Q) docker-compose -f docker/docker-compose.yaml up --build synthesiser
+
+example-synthesiser-run-detached:
+	$(Q) docker-compose -f docker/docker-compose.yaml up --build synthesiser -d
+
+example-synthesiser-logs:
+	$(Q) docker-compose -f docker/docker-compose.yaml logs synthesiser -f
+
+example-synthesiser-down:
+	$(Q) docker-compose -f docker/docker-compose.yaml down synthesiser
+
 example-all-run:
 	$(Q) docker-compose -f docker/docker-compose.yaml up --build
 

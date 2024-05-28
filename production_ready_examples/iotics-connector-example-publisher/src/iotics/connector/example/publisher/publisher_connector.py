@@ -225,12 +225,12 @@ class PublisherConnector:
         while True:
             # The following dictionary represents the data generator function to be called
             # based on its key.
-            data_type = {
+            data_type_selection = {
                 constant.TEMPERATURE_FEED_ID: self._data_source.make_temperature_reading,
                 constant.HUMIDITY_FEED_ID: self._data_source.make_humidity_reading,
             }
             # A specific data generator function will be called according to the Feed ID
-            data_generator_function = data_type.get(feed_id)
+            data_generator_function = data_type_selection.get(feed_id)
             data_sample = data_generator_function()
 
             retry_on_exception(

@@ -77,6 +77,9 @@ class FollowerConnector:
 
         twin_properties = [
             create_property(
+                key=constant.PROPERTY_KEY_TYPE, value=constant.DATA_STORE, is_uri=True
+            ),
+            create_property(
                 key=constant.PROPERTY_KEY_LABEL, value="Twin Follower", language="en"
             ),
             create_property(
@@ -143,7 +146,7 @@ class FollowerConnector:
         )
 
         twins_found_list = search_twins(
-            search_criteria, self._refresh_token_lock, self._iotics_api
+            search_criteria, self._refresh_token_lock, self._iotics_api, True
         )
 
         log.info("Found %d Twins based on the search criteria", len(twins_found_list))

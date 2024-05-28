@@ -32,6 +32,17 @@ MAX_TEMP_VALUE = 30
 MIN_HUM_VALUE = 0
 MAX_HUM_VALUE = 100
 
+# Synthesiser Connector Consts
+CALCULATION_PERIOD_SEC = 10
+AVERAGE_FEED_ID = "average"
+AVERAGE_TEMPERATURE_FEED_VALUE = "avg_temperature"
+AVERAGE_HUMIDITY_FEED_VALUE = "avg_humidity"
+MIN_MAX_FEED_ID = "min_max"
+MIN_TEMPERATURE_FEED_VALUE = "min_temperature"
+MAX_TEMPERATURE_FEED_VALUE = "max_temperature"
+MIN_HUMIDITY_FEED_VALUE = "min_humidity"
+MAX_HUMIDITY_FEED_VALUE = "max_humidity"
+
 # Value Units
 CELSIUS_DEGREES = "http://qudt.org/vocab/unit/DEG_C"
 PERCENT = "http://qudt.org/vocab/unit/PERCENT"
@@ -40,6 +51,11 @@ PERCENT = "http://qudt.org/vocab/unit/PERCENT"
 SENSOR = "https://www.wikidata.org/wiki/Q167676"
 TEMPERATURE = "https://www.wikidata.org/wiki/Q11466"
 HUMIDITY = "https://www.wikidata.org/wiki/Q180600"
+DATA_STORE = "https://www.wikidata.org/wiki/Q80428"
+MEAN_VALUE = "https://www.wikidata.org/wiki/Q2796622"
+MAX_VALUE = "https://schema.org/maxValue"
+MIN_VALUE = "https://schema.org/minValue"
+
 
 # DB settings
 DB_URL = "postgresql://postgres:iotics@postgres:5432/iotics_tutorials"
