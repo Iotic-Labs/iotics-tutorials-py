@@ -2,6 +2,12 @@
 
 All notable changes to these examples will be documented in this file.
 
+## 2024-05-28
+
+- Added Synthesiser Connector example.
+- Added additional methods to `data_processor.py` used by the Synthesiser Connector.
+- Added `use_db` parameter in `DataProcessor` constructor to handle the use of this class with Connectors that don't need the initialisation of `DBManager`.
+
 ## 2024-05-15
 
 - Added Postgres DB storage mechanism for Follower Connector.

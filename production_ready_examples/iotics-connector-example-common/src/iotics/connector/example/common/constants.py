@@ -53,6 +53,9 @@ TEMPERATURE = "https://www.wikidata.org/wiki/Q11466"
 HUMIDITY = "https://www.wikidata.org/wiki/Q180600"
 DATA_STORE = "https://www.wikidata.org/wiki/Q80428"
 MEAN_VALUE = "https://www.wikidata.org/wiki/Q2796622"
+MAX_VALUE = "https://schema.org/maxValue"
+MIN_VALUE = "https://schema.org/minValue"
+
 
 # DB settings
 DB_URL = "postgresql://postgres:iotics@postgres:5432/iotics_tutorials"

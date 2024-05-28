@@ -1,30 +1,16 @@
-# Follower Connector
+# Synthesiser Connector
 
-This module provides an example of a Follower Connector that searches for Sensor Twins with the goal of storing Feed's data about Temperature and Humidity into a Database. A Twin Follower is created which waits for new data samples to be received. Overall, this module demonstrates how a follower connector can interact with sensor twins, receive feed data, and process it accordingly.
+This module provides an example of a Synthesiser Connector that searches for Sensor Twins with the goal of performing computations on the data and sharing the results to the IOTICSpace. Specifically, a Twin Synthesiser with 2 Feeds is created which waits for new data samples to be received. It then periodically computes the average of the received data, along with the Min and Max values. Finally, it shares the synthesised data (Average and Min/Max) via the related Feeds. Overall, this module demonstrates how a Synthesiser Connector can interact with Sensor Twins, receive feed data, process it and share the synthesised data back to an IOTICSpace.
 
-## follower_connector.py
+## synthesiser_connector.py
 
-Defines a **FollowerConnector** class that simulates a connector responsible for following sensor twins and receiving feed data about temperature and humidity. It defines a method to search for sensor twins based on specific criteria and a method to get feed data from the specified twin and feed. This method continuously listens for new data samples and processes them using the **DataProcessor** class. A `start` method orchestrates the entire process by creating the twin, searching for sensor twins, following their feeds, and cleaning up afterward.
+Defines a **SynthesiserConnector** class that simulates a connector responsible for:
+1. Creating the Synthesiser Twin;
+2. Searching for the Sensor Twins;
+3. Following the Sensor Twins' Feeds;
+4. Applying some computation on the feed data received about temperature and humidity;
+5. Sharing the synthesised data to the IOTICSpace.
 
 ## main.py
 
-Initialises the **DataProcessor** and **FollowerConnector** classes and starts the follower connector to listen for feed data from sensor twins.
-
-## How to access the DB
-
-1. Identify the container id that is in use by postgres:
-```bash
-$ docker ps
-```
-2. Access the container from terminal:
-```bash
-$ docker exec -it <container_id> bash
-```
-3. Connect to the DB from within the container:
-```bash
-$ psql -U postgres -d iotics_tutorials
-```
-4. Use SQL to interrogate the DB. E.g.:
-```sql
-$ SELECT * FROM "SensorReadings";
-```
+Initialises the **DataProcessor** and **SynthesiserConnector** classes and starts the synthesiser connector to listen for feed data from sensor twins and share synthesised data.

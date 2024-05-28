@@ -4,7 +4,11 @@ This module provides an example of a Publisher Connector that simulates the crea
 
 ## publisher_connector.py
 
-Defines a **PublisherConnector** class responsible for simulating the creation of Sensor Twins and sharing data about temperature and humidity. Upon instantiation, the PublisherConnector object requires a **DataSource** object, which simulates a data source for generating sensor readings. A `start` method orchestrates the entire process by setting up twin structures, creating twins, and initiating data sharing threads. It also ensures that all threads complete their tasks before cleaning up any created Sensor Twins.
+Defines a **PublisherConnector** class that simulates a connector responsible for:
+1. Creating the Sensor Twins;
+2. Sharing data about temperature and humidity.
+
+Upon instantiation, the PublisherConnector object requires a **DataSource** object, which simulates a data source for generating sensor readings. A `start` method orchestrates the entire process by setting up twin structures, creating twins, and initiating data sharing threads. It also ensures that all threads complete their tasks before cleaning up any created Sensor Twins.
 
 ## main.py
 

@@ -64,6 +64,7 @@ class SynthesiserConnector:
         self._refresh_token_lock = Lock()
         self._threads_list = []
 
+        # Initialise the queues that will be used to store Feed data received
         self._temperature_data_received_queue = Queue()
         self._humidity_data_received_queue = Queue()
 
@@ -84,9 +85,6 @@ class SynthesiserConnector:
 
         twin_properties = [
             create_property(
-                key=constant.PROPERTY_KEY_TYPE, value=constant.MEAN_VALUE, is_uri=True
-            ),
-            create_property(
                 key=constant.PROPERTY_KEY_LABEL, value="Twin Synthesiser", language="en"
             ),
             create_property(
@@ -104,15 +102,19 @@ class SynthesiserConnector:
         # Set-up Average Feed's Metadata
         average_feed_properties = [
             create_property(
+                key=constant.PROPERTY_KEY_TYPE, value=constant.MEAN_VALUE, is_uri=True
+            ),
+            create_property(
                 key=constant.PROPERTY_KEY_LABEL, value="Average", language="en"
             ),
-            # create_property(
-            #     key=constant.PROPERTY_KEY_COMMENT,
-            #     value=f"Temperature reading that updates every {constant.TEMPERATURE_READING_PERIOD} seconds",
-            #     language="en",
-            # ),
+            create_property(
+                key=constant.PROPERTY_KEY_COMMENT,
+                value="Average Temperature and Humidity computed every "
+                f"{constant.CALCULATION_PERIOD_SEC} seconds",
+                language="en",
+            ),
         ]
-        # Set-up Average Feed's Value
+        # Set-up Average Feed's Values
         average_feed_values = [
             create_value(
                 label=constant.AVERAGE_TEMPERATURE_FEED_VALUE,
@@ -121,7 +123,7 @@ class SynthesiserConnector:
             ),
             create_value(
                 label=constant.AVERAGE_HUMIDITY_FEED_VALUE,
-                data_type="integer",
+                data_type="float",
                 unit=constant.PERCENT,
             ),
         ]
@@ -129,15 +131,22 @@ class SynthesiserConnector:
         # Set-up Min/Max Feed's Metadata
         min_max_feed_properties = [
             create_property(
+                key=constant.PROPERTY_KEY_TYPE, value=constant.MIN_VALUE, is_uri=True
+            ),
+            create_property(
+                key=constant.PROPERTY_KEY_TYPE, value=constant.MAX_VALUE, is_uri=True
+            ),
+            create_property(
                 key=constant.PROPERTY_KEY_LABEL, value="Min/Max", language="en"
             ),
-            # create_property(
-            #     key=constant.PROPERTY_KEY_COMMENT,
-            #     value=f"Temperature reading that updates every {constant.TEMPERATURE_READING_PERIOD} seconds",
-            #     language="en",
-            # ),
+            create_property(
+                key=constant.PROPERTY_KEY_COMMENT,
+                value="Min and Max value of Temperature and Humidity computed every "
+                f"{constant.CALCULATION_PERIOD_SEC} seconds",
+                language="en",
+            ),
         ]
-        # Set-up Average Feed's Value
+        # Set-up Min/Max Feed's Values
         min_max_feed_values = [
             create_value(
                 label=constant.MIN_TEMPERATURE_FEED_VALUE,
@@ -151,12 +160,12 @@ class SynthesiserConnector:
             ),
             create_value(
                 label=constant.MIN_HUMIDITY_FEED_VALUE,
-                data_type="integer",
+                data_type="float",
                 unit=constant.PERCENT,
             ),
             create_value(
                 label=constant.MAX_HUMIDITY_FEED_VALUE,
-                data_type="integer",
+                data_type="float",
                 unit=constant.PERCENT,
             ),
         ]
@@ -208,71 +217,106 @@ class SynthesiserConnector:
 
         log.info("Created Twin Synthesiser with DID: %s", self._twin_synthesiser_did)
 
+    def _share_average_data(
+        self, temperature_data_list: List[float], humidity_data_list: List[float]
+    ):
+        """Compute the average value and share data via the related Feed.
+
+        Args:
+            temperature_data_list (List[float]): list of temperature values received.
+            humidity_data_list (List[float]): list of humidity values received.
+        """
+
+        # Compute the average value of Temperature and Humidity data
+        average_temperature_data = self._data_processor.compute_average(
+            temperature_data_list
+        )
+        average_humidity_data = self._data_processor.compute_average(humidity_data_list)
+
+        # Prepare the dictionary to share via the related Feed
+        average_feed_data_to_share = {
+            constant.AVERAGE_TEMPERATURE_FEED_VALUE: average_temperature_data,
+            constant.AVERAGE_HUMIDITY_FEED_VALUE: average_humidity_data,
+        }
+
+        retry_on_exception(
+            self._iotics_api.share_feed_data,
+            "share_feed_data",
+            self._refresh_token_lock,
+            twin_did=self._twin_synthesiser_did,
+            feed_id=constant.AVERAGE_FEED_ID,
+            data=average_feed_data_to_share,
+        )
+
+        log.info(
+            "Shared %s via Feed %s",
+            average_feed_data_to_share,
+            constant.AVERAGE_FEED_ID,
+        )
+
+    def _share_min_max_data(
+        self, temperature_data_list: List[float], humidity_data_list: List[float]
+    ):
+        """Compute Min and Max values and share data via the related Feed.
+
+        Args:
+            temperature_data_list (List[float]): list of temperature values received.
+            humidity_data_list (List[float]): list of humidity values received.
+        """
+
+        # Compute Min and Max values of Temperature and Humidity data
+        min_temperature, max_temperature = self._data_processor.get_min_max(
+            temperature_data_list
+        )
+        min_humidity, max_humidity = self._data_processor.get_min_max(
+            humidity_data_list
+        )
+
+        # Prepare the dictionary to share via the related Feed
+        min_max_data_to_share = {
+            constant.MIN_TEMPERATURE_FEED_VALUE: min_temperature,
+            constant.MAX_TEMPERATURE_FEED_VALUE: max_temperature,
+            constant.MIN_HUMIDITY_FEED_VALUE: min_humidity,
+            constant.MAX_HUMIDITY_FEED_VALUE: max_humidity,
+        }
+
+        retry_on_exception(
+            self._iotics_api.share_feed_data,
+            "share_feed_data",
+            self._refresh_token_lock,
+            twin_did=self._twin_synthesiser_did,
+            feed_id=constant.MIN_MAX_FEED_ID,
+            data=min_max_data_to_share,
+        )
+
+        log.info(
+            "Shared %s via Feed %s", min_max_data_to_share, constant.MIN_MAX_FEED_ID
+        )
+
     def _share_synthesised_data(self):
-        """This is the entry point of each Thread (i.e.: Feed).
-        According to the type of data to generate, either average or min/max,
-        a new calculation is made and shared via the specified Twin and Feed.
+        """Periodically empties the temperature and humidity queues, converts them into lists,
+        and performs calculations to compute the average, minimum, and maximum values.
+        The results are then shared through the appropriate methods.
         """
 
         while True:
             sleep(constant.CALCULATION_PERIOD_SEC)
-            temperature_data = self._data_processor.get_list_of_items(
+            log.debug("Making computation...")
+
+            # Convert Temperature queue into a List
+            temperature_data_list = self._data_processor.get_list_of_items(
                 self._temperature_data_received_queue
             )
-            humidity_data = self._data_processor.get_list_of_items(
+            # Convert Humidity queue into a List
+            humidity_data_list = self._data_processor.get_list_of_items(
                 self._humidity_data_received_queue
             )
 
-            average_feed_data_to_share = {
-                constant.AVERAGE_TEMPERATURE_FEED_VALUE: self._data_processor.get_average(
-                    temperature_data
-                ),
-                constant.AVERAGE_HUMIDITY_FEED_VALUE: self._data_processor.get_average(
-                    humidity_data
-                ),
-            }
-
-            retry_on_exception(
-                self._iotics_api.share_feed_data,
-                "share_feed_data",
-                self._refresh_token_lock,
-                twin_did=self._twin_synthesiser_did,
-                feed_id=constant.AVERAGE_FEED_ID,
-                data=average_feed_data_to_share,
-            )
-
-            log.info(
-                "Shared %s via Feed %s",
-                average_feed_data_to_share,
-                constant.AVERAGE_FEED_ID,
-            )
-
-            min_temperature, max_temperature = self._data_processor.get_min_max(
-                temperature_data
-            )
-            min_humidity, max_humidity = self._data_processor.get_min_max(humidity_data)
-            min_max_data_to_share = {
-                constant.MIN_TEMPERATURE_FEED_VALUE: min_temperature,
-                constant.MAX_TEMPERATURE_FEED_VALUE: max_temperature,
-                constant.MIN_HUMIDITY_FEED_VALUE: min_humidity,
-                constant.MAX_HUMIDITY_FEED_VALUE: max_humidity,
-            }
-
-            retry_on_exception(
-                self._iotics_api.share_feed_data,
-                "share_feed_data",
-                self._refresh_token_lock,
-                twin_did=self._twin_synthesiser_did,
-                feed_id=constant.MIN_MAX_FEED_ID,
-                data=min_max_data_to_share,
-            )
-
-            log.info(
-                "Shared %s via Feed %s", min_max_data_to_share, constant.MIN_MAX_FEED_ID
-            )
+            self._share_average_data(temperature_data_list, humidity_data_list)
+            self._share_min_max_data(temperature_data_list, humidity_data_list)
 
     def _search_sensor_twins(self):
-        """Search for the Sensor Twins.
+        """Search for the Sensor Twins. Keep retrying if not found.
 
         Returns:
             twins_found_list: list of Twins found by the Search operation.
@@ -293,7 +337,7 @@ class SynthesiserConnector:
         )
 
         twins_found_list = search_twins(
-            search_criteria, self._refresh_token_lock, self._iotics_api
+            search_criteria, self._refresh_token_lock, self._iotics_api, True
         )
 
         log.info("Found %d Twins based on the search criteria", len(twins_found_list))
@@ -301,9 +345,10 @@ class SynthesiserConnector:
         return twins_found_list
 
     def _get_feed_data(self, publisher_twin_did: str, publisher_feed_id: str):
-        """Entry point for each Thread. Within an infinite loop
+        """Entry point for each Follower Thread. Within an infinite loop
         get a new feed listener given the info about the Twin and Feed to follow
-        alongside the Twin Synthesiser's DID. Wait for new data samples, then process it.
+        alongside the Twin Synthesiser's DID. Wait for new data samples, then add it
+        to the related queue (either Temperature or Humidity according to the Feed ID).
         In case of an expected exception (i.e.: token expired), generate a new
         feed listener and wait again for new data samples.
 
@@ -320,11 +365,12 @@ class SynthesiserConnector:
 
         unexpected_exception_counter: int = 0
 
+        # Dictionary used to select the queue where to put the items received
         data_received_queue_selection = {
             constant.TEMPERATURE_FEED_ID: self._temperature_data_received_queue,
             constant.HUMIDITY_FEED_ID: self._humidity_data_received_queue,
         }
-        # A specific queue will be used according to the Feed ID
+        # Select the specific queue according to the Feed ID
         data_received_queue: Queue = data_received_queue_selection.get(
             publisher_feed_id
         )
@@ -354,6 +400,7 @@ class SynthesiserConnector:
                     )
                     feed_data_payload = latest_feed_data.payload
 
+                    # Add item to the queue
                     data_received_queue.put(feed_data_payload)
             except grpc.RpcError as grpc_ex:
                 # Any time the token expires, an expected gRPC exception is raised
@@ -373,7 +420,8 @@ class SynthesiserConnector:
 
     def _follow_sensor_twins(self, sensor_twins_list):
         """Create and start a new Thread for each Feed of each Twin included
-        in the Sensor Twins List. Then add the thread to the Thread list.
+        in the Sensor Twins List to wait and process Feed data.
+        Then add the thread to the Thread list.
 
         Args:
             sensor_twins_list: list of Twins found by the Search operation.
@@ -398,8 +446,8 @@ class SynthesiserConnector:
                 self._threads_list.append(feed_thread)
 
     def start(self):
-        """Create the Twin Synthesiser, search for Sensor Twins, follow their Feeds
-        and share average data."""
+        """Create the Twin Synthesiser, search for Sensor Twins and follow their Feeds.
+        When a new data sample is received, make some computation and share the data."""
 
         twin_structure = self._setup_twin_structure()
         self._create_twin(twin_structure)
