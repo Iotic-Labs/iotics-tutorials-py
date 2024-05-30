@@ -8,9 +8,9 @@ This folder contains a set of examples of Connectors developed in a robust and e
 
 This module provides an example of a Publisher Connector that simulates the creation of multiple Sensor Twins sharing data about Temperature and Humidity. Each Sensor Twin consists of two Feeds: one for temperature data and the other for humidity data. The semantic descriptions of Twins and Feeds are based on publicly available ontologies.
 
-### iotics-connector-example-follower
+### iotics-connector-example-historianwriter
 
-This module provides an example of a Follower Connector that searches for Sensor Twins with the goal of storing Feed's data about Temperature and Humidity into a Database. A Twin Follower is created which waits for new data samples to be received. Overall, this module demonstrates how a follower connector can interact with sensor twins, receive Feed data and process it accordingly.
+This module provides an example of a Follower Connector that searches for Sensor Twins with the goal of storing Feed's data about Temperature and Humidity into a Database. An Historian Writer Twin is created which waits for new data samples to be received. Overall, this module demonstrates how a follower connector can interact with sensor twins, receive Feed data and process it accordingly.
 
 ### iotics-connector-example-synthesiser
 
@@ -22,16 +22,7 @@ This module provides a set of Classes and functions to simplify the development 
 
 ## Set-up and Execution
 
-Set all the env variables of the `.env` file within the `docker` directory.
-Each example is dockerised to facilitate their deployment and execution within a production environment. The execution of the aforementioned Connectors is facilitated through the use of `make` commands as follows (replace `<connector>` with one between `publisher`/`follower`/`synthesiser`):
-
-- `make example-<connector>-run`: builds and executes a service of the Connector;
-- `make example-<connector>-run-detached`: same as above, in detached mode;
-- `make example-<connector>-logs`: used to see the connector's logs;
-- `make example-<connector>-down`: stops and removes the connector's containers and networks.
-- `example-all-run`: builds and executes a service of **all** Connectors;
-- `example-all-down`: stops and removes **all** connector's containers and networks.
-
+Each example is dockerised to facilitate their deployment and execution within a production environment. The execution of the aforementioned Connectors is facilitated through the use of `make` commands.
 
 ## Best Practices
 

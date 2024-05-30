@@ -32,7 +32,6 @@ class PublisherConnector:
         self._iotics_api: IoticsApi = None
         self._refresh_token_lock: Lock = None
         self._threads_list: List[Thread] = None
-        self._twins_list: List[TwinStructure] = None
 
         self._initialise()
 
@@ -58,7 +57,6 @@ class PublisherConnector:
 
         self._refresh_token_lock = Lock()
         self._threads_list = []
-        self._twins_list = []
 
         # Start auto-refreshing token Thread in the background
         Thread(
@@ -159,58 +157,48 @@ class PublisherConnector:
 
         return twin_structure
 
-    def _create_twins(self, twin_structure: TwinStructure):
-        """Create the Sensor Twins given a Twin Structure.
+    def _create_twin(self, twin_structure: TwinStructure, sensor_n: int) -> str:
+        """Create a Sensor Twin given a Twin Structure.
 
         Args:
             twin_structure (TwinStructure): Structure of the Sensor Twin to create.
+            sensor_n (int): sensor number to be used as a Twin Key Name.
+
+        Returns:
+            int: the Twin DID just created.
         """
 
-        log.info("Creating Sensor Twins...")
+        # The Sensor Twin's Label will be dynamically
+        # generated according to the Sensor number
+        # and added to the list of Twin's Properties
+        twin_label = f"Sensor {sensor_n+1}"
+        twin_structure.properties.append(
+            create_property(
+                key=constant.PROPERTY_KEY_LABEL, value=twin_label, language="en"
+            ),
+        )
 
-        for sensor_n in range(constant.NUMBER_OF_SENSORS):
-            # The Sensor Twin's Label will be dynamically
-            # generated according to the Sensor number
-            # and added to the list of Twin's Properties
-            twin_label = f"Sensor {sensor_n+1}"
-            twin_structure.properties.append(
-                create_property(
-                    key=constant.PROPERTY_KEY_LABEL, value=twin_label, language="en"
-                ),
+        twin_registered_identity = (
+            self._iotics_identity.create_twin_with_control_delegation(
+                twin_key_name=f"sensor_{sensor_n+1}"
             )
+        )
+        twin_did: str = twin_registered_identity.did
+        log.debug("Generated new Twin DID: %s", twin_did)
 
-            twin_registered_identity = (
-                self._iotics_identity.create_twin_with_control_delegation(
-                    twin_key_name=f"sensor_{sensor_n+1}"
-                )
-            )
-            twin_did: str = twin_registered_identity.did
-            log.debug("Generated new Twin DID: %s", twin_did)
+        retry_on_exception(
+            grpc_operation=self._iotics_api.upsert_twin,
+            function_name="upsert_twin",
+            refresh_token_lock=self._refresh_token_lock,
+            twin_did=twin_did,
+            location=twin_structure.location,
+            properties=twin_structure.properties,
+            feeds=twin_structure.feeds_list,
+        )
 
-            retry_on_exception(
-                self._iotics_api.upsert_twin,
-                "upsert_twin",
-                self._refresh_token_lock,
-                twin_did=twin_did,
-                location=twin_structure.location,
-                properties=twin_structure.properties,
-                feeds=twin_structure.feeds_list,
-            )
+        log.info("%s created with DID: %s", twin_label, twin_did)
 
-            log.info("%s created with DID: %s", twin_label, twin_did)
-
-            # Each Sensor Twin's Feed will share data asynchronously,
-            # so we will start a Thread for each of them.
-            for feed in twin_structure.feeds_list:
-                feed_thread = Thread(
-                    target=self._share_data,
-                    args=[twin_did, feed.id],
-                    name=f"{twin_did}_{feed.id}",
-                )
-                feed_thread.start()
-                self._threads_list.append(feed_thread)
-
-            self._twins_list.append(twin_did)
+        return twin_did
 
     def _share_data(self, twin_did: str, feed_id: str):
         """This is the entry point of each Thread (i.e.: Feed).
@@ -234,27 +222,47 @@ class PublisherConnector:
             data_sample = data_generator_function()
 
             retry_on_exception(
-                self._iotics_api.share_feed_data,
-                "share_feed_data",
-                self._refresh_token_lock,
+                grpc_operation=self._iotics_api.share_feed_data,
+                function_name="share_feed_data",
+                refresh_token_lock=self._refresh_token_lock,
                 twin_did=twin_did,
                 feed_id=feed_id,
                 data=data_sample,
             )
 
             log.info(
-                "Shared %s from Twin DID %s via Feed %s",
-                data_sample,
-                twin_did,
-                feed_id,
+                "Shared %s from Twin DID %s via Feed %s", data_sample, twin_did, feed_id
             )
+
+    def _start_sharing_data(self, twin_structure: TwinStructure, twin_did: str):
+        """Each Sensor Twin's Feed will share data asynchronously, so a Thread
+        is started for each of them.
+
+        Args:
+            twin_structure (TwinStructure): Structure of the Sensor Twin
+                used to get info about their Feeds.
+            twin_did (str): Twin DID of the Sensor sharing data.
+        """
+
+        for feed in twin_structure.feeds_list:
+            feed_thread = Thread(
+                target=self._share_data,
+                args=[twin_did, feed.id],
+                name=f"{twin_did}_{feed.id}",
+            )
+            feed_thread.start()
+            self._threads_list.append(feed_thread)
 
     def start(self):
         """Create the Sensor Twins and share Temperature and Humidity data
         via their Feeds."""
 
         twin_structure = self._setup_twin_structure()
-        self._create_twins(twin_structure)
+
+        log.info("Creating Sensor Twins...")
+        for sensor_n in range(constant.NUMBER_OF_SENSORS):
+            twin_did = self._create_twin(twin_structure, sensor_n)
+            self._start_sharing_data(twin_structure, twin_did)
 
         for thread in self._threads_list:
             thread.join()

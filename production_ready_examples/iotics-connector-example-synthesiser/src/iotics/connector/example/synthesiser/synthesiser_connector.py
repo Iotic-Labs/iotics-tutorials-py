@@ -207,9 +207,9 @@ class SynthesiserConnector:
         log.debug("Generated new Twin DID: %s", self._twin_synthesiser_did)
 
         retry_on_exception(
-            self._iotics_api.upsert_twin,
-            "upsert_twin",
-            self._refresh_token_lock,
+            grpc_operation=self._iotics_api.upsert_twin,
+            function_name="upsert_twin",
+            refresh_token_lock=self._refresh_token_lock,
             twin_did=self._twin_synthesiser_did,
             properties=twin_structure.properties,
             feeds=twin_structure.feeds_list,
@@ -240,9 +240,9 @@ class SynthesiserConnector:
         }
 
         retry_on_exception(
-            self._iotics_api.share_feed_data,
-            "share_feed_data",
-            self._refresh_token_lock,
+            grpc_operation=self._iotics_api.share_feed_data,
+            function_name="share_feed_data",
+            refresh_token_lock=self._refresh_token_lock,
             twin_did=self._twin_synthesiser_did,
             feed_id=constant.AVERAGE_FEED_ID,
             data=average_feed_data_to_share,
@@ -281,9 +281,9 @@ class SynthesiserConnector:
         }
 
         retry_on_exception(
-            self._iotics_api.share_feed_data,
-            "share_feed_data",
-            self._refresh_token_lock,
+            grpc_operation=self._iotics_api.share_feed_data,
+            function_name="share_feed_data",
+            refresh_token_lock=self._refresh_token_lock,
             twin_did=self._twin_synthesiser_did,
             feed_id=constant.MIN_MAX_FEED_ID,
             data=min_max_data_to_share,
@@ -312,8 +312,14 @@ class SynthesiserConnector:
                 self._humidity_data_received_queue
             )
 
-            self._share_average_data(temperature_data_list, humidity_data_list)
-            self._share_min_max_data(temperature_data_list, humidity_data_list)
+            if temperature_data_list and humidity_data_list:
+                self._share_average_data(temperature_data_list, humidity_data_list)
+                self._share_min_max_data(temperature_data_list, humidity_data_list)
+            else:
+                log.info(
+                    "No data was received over the last %s seconds",
+                    constant.CALCULATION_PERIOD_SEC,
+                )
 
     def _search_sensor_twins(self):
         """Search for the Sensor Twins. Keep retrying if not found.
@@ -337,7 +343,10 @@ class SynthesiserConnector:
         )
 
         twins_found_list = search_twins(
-            search_criteria, self._refresh_token_lock, self._iotics_api, True
+            search_criteria=search_criteria,
+            refresh_token_lock=self._refresh_token_lock,
+            iotics_api=self._iotics_api,
+            keep_searching=True,
         )
 
         log.info("Found %d Twins based on the search criteria", len(twins_found_list))
@@ -378,9 +387,9 @@ class SynthesiserConnector:
         while True:
             log.debug("Generating a new feed_listener...")
             feed_listener = retry_on_exception(
-                self._iotics_api.fetch_interests,
-                "fetch_interests",
-                self._refresh_token_lock,
+                grpc_operation=self._iotics_api.fetch_interests,
+                function_name="fetch_interests",
+                refresh_token_lock=self._refresh_token_lock,
                 follower_twin_did=self._twin_synthesiser_did,
                 followed_twin_did=publisher_twin_did,
                 followed_feed_id=publisher_feed_id,
@@ -398,10 +407,9 @@ class SynthesiserConnector:
                         publisher_twin_did,
                         publisher_feed_id,
                     )
-                    feed_data_payload = latest_feed_data.payload
 
                     # Add item to the queue
-                    data_received_queue.put(feed_data_payload)
+                    data_received_queue.put(latest_feed_data)
             except grpc.RpcError as grpc_ex:
                 # Any time the token expires, an expected gRPC exception is raised
                 # and a new 'feed_listener' object needs to be generated.

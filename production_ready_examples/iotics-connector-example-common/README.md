@@ -29,3 +29,11 @@ Defines a **DataSource** class which provides methods for generating simulated t
 ## db_manager.py
 
 Defines a class called **DBManager** for managing and storing sensor readings in a Postgres database. It leverages SQLAlchemy for ORM (Object-Relational Mapping), threading for concurrent processing, and logging for event tracking.
+
+## db_reader.py
+
+Provides a class called **DBReader** which extends the functionality of **DBManager**. The DBReader class is used to manage database read operations. 
+
+## db_writer.py
+
+Provides a class called **DBWriter** which extends the functionality of **DBManager**. The DBWriter class is used to manage database write operations and user management.
