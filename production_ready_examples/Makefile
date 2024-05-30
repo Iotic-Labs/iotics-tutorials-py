@@ -43,6 +43,18 @@ example-synthesiser-logs:
 example-synthesiser-down:
 	$(Q) docker-compose -f docker/docker-compose.yaml down synthesiser
 
+example-databypass-run:
+	$(Q) docker-compose -f docker/docker-compose.yaml up --build databypass
+
+example-databypass-run-detached:
+	$(Q) docker-compose -f docker/docker-compose.yaml up --build databypass -d
+
+example-databypass-logs:
+	$(Q) docker-compose -f docker/docker-compose.yaml logs databypass -f
+
+example-databypass-down:
+	$(Q) docker-compose -f docker/docker-compose.yaml down databypass
+
 example-all-run:
 	$(Q) docker-compose -f docker/docker-compose.yaml up --build
 

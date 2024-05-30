@@ -55,6 +55,19 @@ services:
     env_file:
       - ".env"
     networks: ["connector-example"]
+  
+  # Databypass Connector
+  databypass:
+    container_name: "databypass"
+    build:
+      context: ".."
+      dockerfile: "iotics-connector-example-databypass/Dockerfile"
+    command: "python3 /home/iotics/app/main.py"
+    env_file:
+      - ".env"
+    depends_on:
+      - postgres
+    networks: ["connector-example"]
 
 networks:
   connector-example:

@@ -74,6 +74,9 @@ class DataProcessor:
             sensor_reading=received_data.get(constant.SENSOR_FEED_VALUE),
         )
 
+    def get_from_db(self):
+        self._db_manager.get_all_readings()
+
     def get_list_of_items(self, data_received_queue: Queue) -> List[float]:
         """Append each items of a Queue into a List by emptying the queue.
 

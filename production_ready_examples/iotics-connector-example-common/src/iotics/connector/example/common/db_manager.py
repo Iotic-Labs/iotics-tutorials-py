@@ -110,3 +110,21 @@ class DBManager:
 
         self._queue.put(sensor_reading_obj)
         log.debug("Item added to the queue")
+
+    def get_all_readings(self):
+        """Fetches all sensor readings from the database.
+
+        Returns:
+            list: A list of SensorReading objects.
+        """
+
+        readings = []
+
+        try:
+            readings = self._session.query(SensorReading).all()
+            log.debug("Fetched all readings successfully")
+        except Exception as ex:
+            log.error("Error fetching all readings: %s", ex)
+
+        for reading in readings:
+            print(reading.timestamp, reading.twin_did, reading.feed_id, reading.reading)
