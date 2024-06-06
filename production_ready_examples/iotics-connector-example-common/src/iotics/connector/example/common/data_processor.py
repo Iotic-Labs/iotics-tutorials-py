@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 class DataProcessor:
     """Object simulating a data processor."""
 
-    def __init__(self, use_db: bool = False):
+    def __init__(self):
         """Constructor of the DataProcessor Class.
         It initialises a DBManager object if a DB needs to be used.
 
@@ -21,28 +21,50 @@ class DataProcessor:
                 to be used for the demo. Defaults to False.
         """
 
-        self._db_manager = None
+        self._db_writer = None
 
-        if use_db:
-            from db_manager import DBManager
+    def initialise_db_writer(self, db_name: str, db_username: str, db_password: str):
+        from db_writer import DBWriter
 
-            self._db_manager = DBManager()
+        self._db_writer = DBWriter(
+            db_name=db_name, db_username=db_username, db_password=db_password
+        )
+
+    def initialise_db_reader(self, db_name: str, db_username: str, db_password: str):
+        from db_reader import DBReader
+
+        self._db_writer = DBReader(
+            db_name=db_name, db_username=db_username, db_password=db_password
+        )
 
     @staticmethod
-    def print_on_screen(
-        publisher_twin_did: str, publisher_feed_id: str, feed_data_payload
+    def feed_data_unpack(feed_data):
+        received_data: dict = json.loads(feed_data.payload.feedData.data)
+        occurred_at_unix_time = feed_data.payload.feedData.occurredAt.seconds
+        occurred_at_timestamp = str(datetime.fromtimestamp(occurred_at_unix_time))
+
+        return received_data, occurred_at_timestamp
+
+    @staticmethod
+    def input_data_unpack(input_message):
+        received_data: dict = json.loads(input_message.payload.message.data)
+        occurred_at_unix_time = input_message.payload.message.occurredAt.seconds
+        occurred_at_timestamp = str(datetime.fromtimestamp(occurred_at_unix_time))
+
+        return received_data, occurred_at_timestamp
+
+    def print_feed_data_on_screen(
+        self, publisher_twin_did: str, publisher_feed_id: str, feed_data
     ):
-        """Print on screen the data received.
+        """Print on screen the Feed data received.
 
         Args:
             publisher_twin_did (str): the Twin DID publishing data.
             publisher_feed_id (str): the Feed ID from which the data is published.
-            feed_data_payload: payload of the Feed data received.
+            feed_data: Feed data received.
         """
 
-        received_data: dict = json.loads(feed_data_payload.feedData.data)
-        occurred_at_unix_time = feed_data_payload.feedData.occurredAt.seconds
-        occurred_at_timestamp = str(datetime.fromtimestamp(occurred_at_unix_time))
+        received_data, occurred_at_timestamp = self.feed_data_unpack(feed_data)
 
         log.info(
             "Received data %s published by Twin DID %s via Feed %s at %s",
@@ -52,30 +74,47 @@ class DataProcessor:
             occurred_at_timestamp,
         )
 
-    def export_to_db(
-        self, publisher_twin_did: str, publisher_feed_id: str, feed_data_payload
+    def print_input_message_on_screen(
+        self, receiver_twin_did: str, receiver_input_id: str, input_message
     ):
+        """Print on screen the Input message received.
+
+        Args:
+            receiver_twin_did (str): the Twin DID receiving Input Messages.
+            receiver_input_id (str): the Input ID from which the message is received.
+            input_message: payload of the Input message received.
+        """
+
+        received_data, occurred_at_timestamp = self.input_data_unpack(input_message)
+
+        log.info(
+            "Received message %s by Twin DID %s via Input %s at %s",
+            received_data,
+            receiver_twin_did,
+            receiver_input_id,
+            occurred_at_timestamp,
+        )
+
+    def export_to_db(self, publisher_twin_did: str, publisher_feed_id: str, feed_data):
         """Export to DB the data received.
 
         Args:
             publisher_twin_did (str): the Twin DID publishing data.
             publisher_feed_id (str): the Feed ID from which the data is published.
-            feed_data_payload: payload of the Feed data received.
+            feed_data: Feed data received.
         """
 
-        received_data: dict = json.loads(feed_data_payload.feedData.data)
-        occurred_at_unix_time = feed_data_payload.feedData.occurredAt.seconds
-        occurred_at_timestamp = str(datetime.fromtimestamp(occurred_at_unix_time))
+        received_data, occurred_at_timestamp = self.feed_data_unpack(feed_data)
 
-        self._db_manager.store_to_db(
+        self._db_writer.store_to_db(
             datetime=occurred_at_timestamp,
             sensor_twin_did=publisher_twin_did,
             sensor_feed_id=publisher_feed_id,
             sensor_reading=received_data.get(constant.SENSOR_FEED_VALUE),
         )
 
-    def get_from_db(self):
-        self._db_manager.get_all_readings()
+    # def get_from_db(self):
+    #     self._db_writer.get_all_readings()
 
     def get_list_of_items(self, data_received_queue: Queue) -> List[float]:
         """Append each items of a Queue into a List by emptying the queue.
@@ -97,7 +136,7 @@ class DataProcessor:
                 data_received = data_received_queue.get_nowait()
 
                 # Convert the Feed data received into a Python dict
-                received_data: dict = json.loads(data_received.feedData.data)
+                received_data, _ = self.feed_data_unpack(data_received)
                 log.debug("Received data %s from queue", received_data)
 
                 # The data received is a dictionary.

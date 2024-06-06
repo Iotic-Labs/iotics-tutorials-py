@@ -8,6 +8,7 @@ from typing import List
 import constants as constant
 import grpc
 from data_processor import DataProcessor
+from flask import Flask
 from identity import Identity
 from iotics.lib.grpc.helpers import create_feed_with_meta, create_property, create_value
 from iotics.lib.grpc.iotics_api import IoticsApi
@@ -312,8 +313,14 @@ class SynthesiserConnector:
                 self._humidity_data_received_queue
             )
 
-            self._share_average_data(temperature_data_list, humidity_data_list)
-            self._share_min_max_data(temperature_data_list, humidity_data_list)
+            if temperature_data_list and humidity_data_list:
+                self._share_average_data(temperature_data_list, humidity_data_list)
+                self._share_min_max_data(temperature_data_list, humidity_data_list)
+            else:
+                log.info(
+                    "No data was received over the last %s seconds",
+                    constant.CALCULATION_PERIOD_SEC,
+                )
 
     def _search_sensor_twins(self):
         """Search for the Sensor Twins. Keep retrying if not found.
@@ -398,10 +405,9 @@ class SynthesiserConnector:
                         publisher_twin_did,
                         publisher_feed_id,
                     )
-                    feed_data_payload = latest_feed_data.payload
 
                     # Add item to the queue
-                    data_received_queue.put(feed_data_payload)
+                    data_received_queue.put(latest_feed_data)
             except grpc.RpcError as grpc_ex:
                 # Any time the token expires, an expected gRPC exception is raised
                 # and a new 'feed_listener' object needs to be generated.

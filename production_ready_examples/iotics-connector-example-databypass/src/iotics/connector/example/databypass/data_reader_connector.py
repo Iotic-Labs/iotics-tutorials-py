@@ -14,14 +14,19 @@ from iotics.lib.grpc.helpers import (
 )
 from iotics.lib.grpc.iotics_api import IoticsApi
 from twin_structure import TwinStructure
-from utilities import expected_grpc_exception, get_host_endpoints, retry_on_exception
+from utilities import (
+    expected_grpc_exception,
+    get_host_endpoints,
+    retry_on_exception,
+    search_twins,
+)
 
 log = logging.getLogger(__name__)
 
 
-class DataBypassConnector:
+class DataReaderConnector:
     def __init__(self, data_processor: DataProcessor):
-        """Constructor of a Follower Connector object.
+        """Constructor of a Data Reader Connector object.
 
         Args:
             data_processor (DataProcessor): object simulating a data processor engine.
@@ -32,7 +37,7 @@ class DataBypassConnector:
         self._iotics_api: IoticsApi = None
         self._refresh_token_lock: Lock = None
         self._threads_list: List[Thread] = None
-        self._data_bypass_twin_did: str = None
+        self._data_reader_twin_did: str = None
 
         self._initialise()
 
@@ -42,20 +47,20 @@ class DataBypassConnector:
         regenerated when it expires.
         """
 
-        log.debug("Initialising DataBypass Connector...")
-        endpoints = get_host_endpoints(host_url=os.getenv("DATABYPASS_HOST_URL"))
+        log.debug("Initialising Data Reader Connector...")
+        endpoints = get_host_endpoints(host_url=os.getenv("DATAREADER_HOST_URL"))
         self._iotics_identity = Identity(
             resolver_url=endpoints.get("resolver"),
             grpc_endpoint=endpoints.get("grpc"),
             user_key_name=os.getenv("USER_KEY_NAME"),
             user_seed=os.getenv("USER_SEED"),
-            agent_key_name=os.getenv("DATABYPASS_CONNECTOR_AGENT_KEY_NAME"),
-            agent_seed=os.getenv("DATABYPASS_CONNECTOR_AGENT_SEED"),
+            agent_key_name=os.getenv("DATAREADER_CONNECTOR_AGENT_KEY_NAME"),
+            agent_seed=os.getenv("DATAREADER_CONNECTOR_AGENT_SEED"),
         )
         log.debug("IOTICS Identity initialised")
         self._iotics_api = IoticsApi(auth=self._iotics_identity)
         log.debug("IOTICS gRPC API initialised")
-        
+
         self._refresh_token_lock = Lock()
         self._threads_list = []
 
@@ -76,16 +81,14 @@ class DataBypassConnector:
 
         twin_properties = [
             create_property(
-                key=constant.PROPERTY_KEY_TYPE, value=constant.DATA_ACCESS, is_uri=True
+                key=constant.PROPERTY_KEY_TYPE, value=constant.REQUEST, is_uri=True
             ),
             create_property(
-                key=constant.PROPERTY_KEY_LABEL,
-                value="Data Bypass for IOTICS tutorials",
-                language="en",
+                key=constant.PROPERTY_KEY_LABEL, value="Data Reader", language="en"
             ),
             create_property(
                 key=constant.PROPERTY_KEY_COMMENT,
-                value="Twin used to provide access to data out-of-band",
+                value="Read data from Database",
                 language="en",
             ),
             create_property(
@@ -94,49 +97,44 @@ class DataBypassConnector:
             ),
         ]
 
-        verification_info_input_properties = [
+        credentials_info_input_properties = [
             create_property(
                 key=constant.PROPERTY_KEY_TYPE, value=constant.VERIFICATION, is_uri=True
             ),
             create_property(
                 key=constant.PROPERTY_KEY_LABEL,
-                value="Verification Info",
+                value="DB credentials Info",
                 language="en",
             ),
             create_property(
                 key=constant.PROPERTY_KEY_COMMENT,
-                value="Verification Info of a person who wants to access the Data Archive",
+                value="DB credentials Info to access the Database",
                 language="en",
             ),
         ]
-        verification_info_input_values = [
+        credentials_info_input_values = [
             create_value(
-                label=constant.FULL_NAME_INPUT_VALUE,
+                label=constant.DB_NAME_INPUT_VALUE,
                 data_type="string",
-                comment="Full name of the person who wants to access the Data Archive",
+                comment="Name of the DB",
             ),
             create_value(
-                label=constant.ORGANISATION_INPUT_VALUE,
+                label=constant.DB_USERNAME_INPUT_VALUE,
                 data_type="string",
-                comment="Organisation of the person who wants to access the Data Archive",
+                comment="Username used to access the DB",
             ),
             create_value(
-                label=constant.EMAIL_INPUT_VALUE,
+                label=constant.DB_PASSWORD_INPUT_VALUE,
                 data_type="string",
-                comment="Email address of the person who wants to access the Data Archive",
-            ),
-            create_value(
-                label=constant.TWIN_ID_INPUT_VALUE,
-                data_type="string",
-                comment="Twin ID that requested access the Data Archive",
+                comment="Password used to access the DB",
             ),
         ]
 
         inputs_list = [
             create_input_with_meta(
-                input_id=constant.VERIFICATION_INFO_INPUT_ID,
-                properties=verification_info_input_properties,
-                values=verification_info_input_values,
+                input_id=constant.DB_ACCESS_INFO_INPUT_ID,
+                properties=credentials_info_input_properties,
+                values=credentials_info_input_values,
             )
         ]
 
@@ -147,16 +145,16 @@ class DataBypassConnector:
         return twin_structure
 
     def _create_twin(self, twin_structure: TwinStructure):
-        """Create the Twin Follower given a Twin Structure.
+        """Create the Data Reader Twin given a Twin Structure.
 
         Args:
-            twin_structure (TwinStructure): Structure of the Twin Follower to create.
+            twin_structure (TwinStructure): Structure of the Data Reader Twin to create.
         """
 
-        log.info("Creating Data Bypass Twin...")
+        log.info("Creating Data Reader Twin...")
 
         twin_identity = self._iotics_identity.create_twin_with_control_delegation(
-            twin_key_name="DataBypassTwin"
+            twin_key_name="DataReaderTwin"
         )
         twin_did = twin_identity.did
         log.debug("Generated new Twin DID: %s", twin_did)
@@ -170,43 +168,23 @@ class DataBypassConnector:
             inputs=twin_structure.inputs_list,
         )
 
-        log.info("Created Data Bypass Twin with DID: %s", twin_did)
+        log.info("Created Data Reader Twin with DID: %s", twin_did)
 
-        self._data_bypass_twin_did = twin_did
+        self._data_reader_twin_did = twin_did
 
     def _process_request(self, new_input_message):
         received_data, _ = self._data_processor.input_data_unpack(new_input_message)
 
-        organisation = received_data.get(constant.ORGANISATION_INPUT_VALUE)
-        twin_requester_id = received_data.get(constant.TWIN_ID_INPUT_VALUE)
+        db_name = received_data.get(constant.DB_URL_INPUT_VALUE)
+        db_username = received_data.get(constant.DB_USERNAME_INPUT_VALUE)
+        db_password = received_data.get(constant.DB_PASSWORD_INPUT_VALUE)
 
-        if organisation in constant.ORGANISATIONS_ALLOWED_LIST:
-            log.info("Organisation '%s' allowed to receive DB access", organisation)
-
-            message_to_send = {
-                constant.DB_NAME_INPUT_VALUE: "name",
-                constant.DB_USERNAME_INPUT_VALUE: "usr",
-                constant.DB_PASSWORD_INPUT_VALUE: "psw",
-            }
-
-            self._iotics_api.send_input_message(
-                sender_twin_did=self._data_bypass_twin_did,
-                receiver_twin_did=twin_requester_id,
-                input_id=constant.DB_ACCESS_INFO_INPUT_ID,
-                message=message_to_send,
-            )
-
-            log.info(
-                "Message %s sent to Twin ID %s", message_to_send, twin_requester_id
-            )
-        else:
-            log.info(
-                "Organisation '%s' NOT allowed to receive DB access. Ignoring message",
-                organisation,
-            )
+        self._data_processor.initialise_db_reader(
+            db_name=db_name, db_username=db_username, db_password=db_password
+        )
 
     def _wait_for_input_messages(self):
-        log.info("Waiting for DB Requests ...")
+        log.info("Waiting for DB Credentials...")
 
         unexpected_exception_counter: int = 0
 
@@ -217,16 +195,16 @@ class DataBypassConnector:
                 self._iotics_api.receive_input_messages,
                 "receive_input_messages",
                 self._refresh_token_lock,
-                twin_did=self._data_bypass_twin_did,
-                input_id=constant.VERIFICATION_INFO_INPUT_ID,
+                twin_did=self._data_reader_twin_did,
+                input_id=constant.DB_ACCESS_INFO_INPUT_ID,
             )
 
             try:
                 for new_input_message in input_listener:
                     # Print Input Message received on screen
                     self._data_processor.print_input_message_on_screen(
-                        receiver_twin_did=self._data_bypass_twin_did,
-                        receiver_input_id=constant.VERIFICATION_INFO_INPUT_ID,
+                        receiver_twin_did=self._data_reader_twin_did,
+                        receiver_input_id=constant.DB_ACCESS_INFO_INPUT_ID,
                         input_message=new_input_message,
                     )
 
@@ -247,15 +225,78 @@ class DataBypassConnector:
 
         log.debug("Exiting thread...")
 
-    def start(self):
-        """Periodically create a new Twin of Archive
-        which waits for DB access requests via Input Messages."""
+    def _search_data_bypass_twins(self):
+        """Search for the Data Bypass Twins.
 
+        Returns:
+            twins_found_list: list of Twins found by the Search operation.
+        """
+
+        log.info("Searching for Data Bypass Twins...")
+        search_criteria = self._iotics_api.get_search_payload(
+            properties=[
+                create_property(
+                    key=constant.PROPERTY_KEY_TYPE,
+                    value=constant.DATA_ACCESS,
+                    is_uri=True,
+                ),
+                create_property(
+                    key=constant.PROPERTY_KEY_CREATED_BY,
+                    value=constant.PROPERTY_VALUE_CREATED_BY_NAME,
+                ),
+            ],
+            response_type="FULL",
+        )
+
+        twins_found_list = search_twins(
+            search_criteria, self._refresh_token_lock, self._iotics_api, True
+        )
+
+        log.info("Found %d Twins based on the search criteria", len(twins_found_list))
+
+        return twins_found_list
+
+    def _send_db_request_messages(self, data_bypass_twins_list):
+        for data_bypass_twin in data_bypass_twins_list:
+            data_bypass_twin_id = data_bypass_twin.twinId.id
+            message_to_send = {
+                constant.FULL_NAME_INPUT_VALUE: "",
+                constant.ORGANISATION_INPUT_VALUE: "IBM",
+                constant.EMAIL_INPUT_VALUE: "",
+                constant.TWIN_ID_INPUT_VALUE: self._data_reader_twin_did,
+            }
+
+            self._iotics_api.send_input_message(
+                sender_twin_did=self._data_reader_twin_did,
+                receiver_twin_did=data_bypass_twin_id,
+                input_id=constant.VERIFICATION_INFO_INPUT_ID,
+                message=message_to_send,
+            )
+            log.info(
+                "Sent Input Message %s to %s", message_to_send, data_bypass_twin_id
+            )
+
+            message_to_send = {
+                constant.FULL_NAME_INPUT_VALUE: "",
+                constant.ORGANISATION_INPUT_VALUE: "IOTICS",
+                constant.EMAIL_INPUT_VALUE: "",
+                constant.TWIN_ID_INPUT_VALUE: self._data_reader_twin_did,
+            }
+
+            self._iotics_api.send_input_message(
+                sender_twin_did=self._data_reader_twin_did,
+                receiver_twin_did=data_bypass_twin_id,
+                input_id=constant.VERIFICATION_INFO_INPUT_ID,
+                message=message_to_send,
+            )
+            log.info(
+                "Sent Input Message %s to %s", message_to_send, data_bypass_twin_id
+            )
+
+    def start(self):
         twin_structure = self._setup_twin_structure()
         self._create_twin(twin_structure)
         thread = Thread(target=self._wait_for_input_messages)
         thread.start()
-        self._threads_list.append(thread)
-
-        # for thread in self._threads_list:
-        #     thread.join()
+        data_bypass_twins_list = self._search_data_bypass_twins()
+        self._send_db_request_messages(data_bypass_twins_list)

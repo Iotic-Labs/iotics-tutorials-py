@@ -57,6 +57,12 @@ class FollowerConnector:
         self._iotics_api = IoticsApi(auth=self._iotics_identity)
         log.debug("IOTICS gRPC API initialised")
 
+        self._data_processor.initialise_db_writer(
+            db_name=os.getenv("DB_NAME"),
+            db_username=os.getenv("DB_USERNAME"),
+            db_password=os.getenv("DB_PASSWORD"),
+        )
+
         self._refresh_token_lock = Lock()
         self._threads_list = []
 
@@ -166,7 +172,7 @@ class FollowerConnector:
         """
 
         log.info(
-            "Getting Feed data from Twin %s, Feed %s...",
+            "Waiting for Feed data from Twin %s, Feed %s...",
             publisher_twin_did,
             publisher_feed_id,
         )
@@ -196,16 +202,15 @@ class FollowerConnector:
                         publisher_twin_did,
                         publisher_feed_id,
                     )
-                    feed_data_payload = latest_feed_data.payload
 
                     # Print data received on screen
-                    self._data_processor.print_on_screen(
-                        publisher_twin_did, publisher_feed_id, feed_data_payload
+                    self._data_processor.print_feed_data_on_screen(
+                        publisher_twin_did, publisher_feed_id, latest_feed_data
                     )
 
                     # Export data receved to DB
                     self._data_processor.export_to_db(
-                        publisher_twin_did, publisher_feed_id, feed_data_payload
+                        publisher_twin_did, publisher_feed_id, latest_feed_data
                     )
             except grpc.RpcError as grpc_ex:
                 # Any time the token expires, an expected gRPC exception is raised

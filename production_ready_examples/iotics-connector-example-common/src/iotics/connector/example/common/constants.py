@@ -43,6 +43,20 @@ MAX_TEMPERATURE_FEED_VALUE = "max_temperature"
 MIN_HUMIDITY_FEED_VALUE = "min_humidity"
 MAX_HUMIDITY_FEED_VALUE = "max_humidity"
 
+# Databypass Connector Consts
+DATETIME_FORMAT = "%d-%b-%Y %H:%M:%S"
+ARCHIVE_PERIOD = 60
+VERIFICATION_INFO_INPUT_ID = "VerificationInfo"
+FULL_NAME_INPUT_VALUE = "full_name"
+ORGANISATION_INPUT_VALUE = "organisation"
+EMAIL_INPUT_VALUE = "email"
+TWIN_ID_INPUT_VALUE = "twin_id"
+ORGANISATIONS_ALLOWED_LIST = ["IOTICS"]
+DB_ACCESS_INFO_INPUT_ID = "DBAccessInfo"
+DB_NAME_INPUT_VALUE = "db_name"
+DB_USERNAME_INPUT_VALUE = "db_username"
+DB_PASSWORD_INPUT_VALUE = "db_password"
+
 # Value Units
 CELSIUS_DEGREES = "http://qudt.org/vocab/unit/DEG_C"
 PERCENT = "http://qudt.org/vocab/unit/PERCENT"
@@ -55,10 +69,13 @@ DATA_STORE = "https://www.wikidata.org/wiki/Q80428"
 MEAN_VALUE = "https://www.wikidata.org/wiki/Q2796622"
 MAX_VALUE = "https://schema.org/maxValue"
 MIN_VALUE = "https://schema.org/minValue"
+DATA_ACCESS = "https://www.wikidata.org/wiki/Q5227230"
+VERIFICATION = "https://www.wikidata.org/wiki/Q953429"
+REQUEST = "https://www.wikidata.org/wiki/Q22445448"
 
 
 # DB settings
-DB_URL = "postgresql://postgres:iotics@postgres:5432/iotics_tutorials"
+DB_URL = "postgresql://{username}:{password}@postgres:5432/{db_name}"
 
 # Logging Configurations
 LOGGING_LEVEL = "INFO"

@@ -8,7 +8,7 @@ config.dictConfig(LOGGING_CONFIGURATION)
 
 
 def main():
-    data_processor = DataProcessor(use_db=True)
+    data_processor = DataProcessor()
     follower_connector = FollowerConnector(data_processor)
     follower_connector.start()
 
