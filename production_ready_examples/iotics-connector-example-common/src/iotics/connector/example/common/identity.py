@@ -25,7 +25,7 @@ class Identity(AuthInterface):
         user_seed: str,
         agent_key_name: str,
         agent_seed: str,
-        token_duration: int = 60,
+        token_duration: int = 60 * 60,
     ):
         self._resolver_url: str = resolver_url
         self._grpc_endpoint: str = grpc_endpoint

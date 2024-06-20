@@ -10,55 +10,19 @@ x-common-logging:
     max-file: "3"
 
 services:
-  # Publisher Connector
-  publisher:
-    container_name: "publisher"
-    build:
-      context: ".."
-      dockerfile: "iotics-connector-example-publisher/Dockerfile"
-    command: "python3 /home/iotics/app/main.py"
-    env_file:
-      - ".env"
-    networks: ["connector-example"]
-
-  # Follower Connector
-  follower:
+  ngn:
     container_name: "follower"
     build:
       context: ".."
-      dockerfile: "iotics-connector-example-follower/Dockerfile"
+      dockerfile: "iotics-connector-ngn-follower/Dockerfile"
     command: "python3 /home/iotics/app/main.py"
     env_file:
       - ".env"
-    depends_on:
-      - postgres
-    networks: ["connector-example"]
-
-  # Postgres DB used by the Follower Connector
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_PASSWORD: "iotics"
     ports:
-      - '5438:5432'
-    volumes:
-      - db:/var/lib/postgresql/data
-    networks: ["connector-example"]
-  
-  # Synthesiser Connector
-  synthesiser:
-    container_name: "synthesiser"
-    build:
-      context: ".."
-      dockerfile: "iotics-connector-example-synthesiser/Dockerfile"
-    command: "python3 /home/iotics/app/main.py"
-    env_file:
-      - ".env"
+      - "5000:5000"
     networks: ["connector-example"]
 
 networks:
   connector-example:
     name: "iotics-connector-example"
 
-volumes:
-  db:

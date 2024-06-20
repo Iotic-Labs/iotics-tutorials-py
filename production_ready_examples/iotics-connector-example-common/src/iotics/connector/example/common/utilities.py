@@ -51,6 +51,7 @@ def search_twins(
     refresh_token_lock: Lock,
     iotics_api: IoticsApi,
     keep_searching: bool = True,
+    timeout: int = 3,
 ):
     """Wrapper of the Search Twin operation to help checking for errors
     and retrying when they occur.
@@ -74,7 +75,9 @@ def search_twins(
             try:
                 with refresh_token_lock:
                     for response in iotics_api.search_iter(
-                        client_app_id=uuid4().hex, payload=search_criteria
+                        client_app_id=uuid4().hex,
+                        payload=search_criteria,
+                        timeout=timeout,
                     ):
                         twins = response.payload.twins
                         twins_found_list.extend(twins)
@@ -124,6 +127,8 @@ def expected_grpc_exception(exception, operation: str) -> bool:
         expected_exception = True
     else:
         log.warning("Unexpected exception raised in '%s': %s", operation, exception)
+
+    sleep(5)
 
     return expected_exception
 

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Table Visualization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            background-color: #f7f7f7;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #fff;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+            color: #333;
+            text-transform: uppercase;
+            font-size: 14px;
+        }
+        td {
+            color: #666;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+    </style>
+</head>
+<body>
+    <h1>NGN Sensors - Powered by IOTICS</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Sensor Key</th>
+                <th>Sensor Description</th>
+                <th>House Number</th>
+                <th>Floor Name</th>
+                <th>Room Name</th>
+                <th>Service Type</th>
+                <th>Object Name</th>
+                <th>Measurement Type</th>
+                <th>Last Shared Value</th>
+                <th>Last Shared Date</th>
+                <th>Avg Sharing Frequency (min)</th>
+                <th>N. Readings Received</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sensor_key, attributes in data.items() %}
+            <tr>
+                <td>{{ sensor_key }}</td>
+                <td>{{ attributes['description'] }}</td>
+                <td>{{ attributes['house_number'] }}</td>
+                <td>{{ attributes['floor_name'] }}</td>
+                <td>{{ attributes['room_name'] }}</td>
+                <td>{{ attributes['service_type'] }}</td>
+                <td>{{ attributes['object_name'] }}</td>
+                <td>{{ attributes['measurement_type'] }}</td>
+                <td>{{ attributes['last_shared_value'] }}</td>
+                <td>{{ attributes['last_shared_date'] }}</td>
+                <td>{{ attributes['avg_sharing_frequency'] }}</td>
+                <td>{{ attributes['n_readings_received'] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
