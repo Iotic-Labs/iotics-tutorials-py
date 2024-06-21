@@ -77,9 +77,7 @@ class FollowerConnector:
     def _parse_sensor_description(self, sensor_description: str):
         description_list = sensor_description.split("_")
 
-        floor_name = room_name = service_type = object_name = measurement_type = (
-            "Unknown"
-        )
+        floor_name = room_name = service_type = object_name = measurement_type = ""
 
         for description in description_list[1:]:
             description_lower = description.lower()
@@ -212,7 +210,7 @@ class FollowerConnector:
             received_data: dict = json.loads(last_shared_data_payload.feedData.data)
         except json.decoder.JSONDecodeError:
             log.debug("Can't decode data ")
-            return {"value": "None"}, "None"
+            return None, None
 
         occurred_at_unix_time = last_shared_data_payload.feedData.occurredAt.seconds
         occurred_at_timestamp = datetime.fromtimestamp(occurred_at_unix_time)
@@ -314,12 +312,17 @@ class FollowerConnector:
             last_shared_data_payload
         )
 
-        self._sensors_data[sensor_key].update(
-            {
-                "last_shared_value": received_data["value"],
-                "last_shared_date": str(occurred_at_timestamp),
-            }
-        )
+        if received_data and occurred_at_timestamp:
+            self._sensors_data[sensor_key].update(
+                {
+                    "last_shared_value": received_data["value"],
+                    "last_shared_date": str(occurred_at_timestamp),
+                }
+            )
+        else:
+            self._sensors_data[sensor_key].update(
+                {"last_shared_value": "", "last_shared_date": ""}
+            )
 
     def _follow_sensor_twins(self, sensor_twins_list):
         """Create and start a new Thread for each Feed of each Twin included
