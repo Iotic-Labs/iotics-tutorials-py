@@ -2,15 +2,15 @@ from logging import config
 
 from constants import LOGGING_CONFIGURATION
 from data_processor import DataProcessor
-from databypass_connector import DataBypassConnector
+from historian_reader_connector import HistorianReaderConnector
 
 config.dictConfig(LOGGING_CONFIGURATION)
 
 
 def main():
     data_processor = DataProcessor()
-    databypass_connector = DataBypassConnector(data_processor)
-    databypass_connector.start()
+    historian_reader_connector = HistorianReaderConnector(data_processor)
+    historian_reader_connector.start()
 
 
 if __name__ == "__main__":

@@ -46,10 +46,10 @@ MAX_HUMIDITY_FEED_VALUE = "max_humidity"
 # Databypass Connector Consts
 DATETIME_FORMAT = "%d-%b-%Y %H:%M:%S"
 ARCHIVE_PERIOD = 60
-VERIFICATION_INFO_INPUT_ID = "VerificationInfo"
-FULL_NAME_INPUT_VALUE = "full_name"
-ORGANISATION_INPUT_VALUE = "organisation"
-EMAIL_INPUT_VALUE = "email"
+SENDER_TWIN_ID_VALUE = "sender_twin_id"
+VERIFICATION_INFO_INPUT_ID = "VerificationInput"
+ORGANISATION_VALUE = "IOTICS"
+EMAIL_ADDRESS_VALUE = "abc@iotics.com"
 TWIN_ID_INPUT_VALUE = "twin_id"
 ORGANISATIONS_ALLOWED_LIST = ["IOTICS"]
 DB_ACCESS_INFO_INPUT_ID = "DBAccessInfo"
@@ -71,6 +71,10 @@ MAX_VALUE = "https://schema.org/maxValue"
 MIN_VALUE = "https://schema.org/minValue"
 DATA_ACCESS = "https://www.wikidata.org/wiki/Q5227230"
 VERIFICATION = "https://www.wikidata.org/wiki/Q953429"
+REQUEST = "https://www.wikidata.org/wiki/Q22445448"
+FULL_NAME = "https://www.wikidata.org/wiki/Q1071027"
+ORGANISATION = "https://www.wikidata.org/wiki/Q43229"
+EMAIL_ADDRESS = "https://www.wikidata.org/wiki/Q1273217"
 REQUEST = "https://www.wikidata.org/wiki/Q22445448"
 
 

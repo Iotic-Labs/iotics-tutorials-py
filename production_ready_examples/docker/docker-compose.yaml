@@ -68,6 +68,19 @@ services:
     depends_on:
       - postgres
     networks: ["connector-example"]
+  
+  # Historian Reader Connector
+  historian_reader:
+    container_name: "historian_reader"
+    build:
+      context: ".."
+      dockerfile: "iotics-connector-example-historianreader/Dockerfile"
+    command: "python3 /home/iotics/app/main.py"
+    env_file:
+      - ".env"
+    depends_on:
+      - databypass
+    networks: ["connector-example"]
 
 networks:
   connector-example:

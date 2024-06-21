@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 from queue import Empty, Queue
 from typing import List, Tuple
-
+import random
 import constants as constant
 
 log = logging.getLogger(__name__)
@@ -22,6 +22,7 @@ class DataProcessor:
         """
 
         self._db_writer = None
+        self._db_reader = None
 
     def initialise_db_writer(self, db_name: str, db_username: str, db_password: str):
         from db_writer import DBWriter
@@ -33,7 +34,7 @@ class DataProcessor:
     def initialise_db_reader(self, db_name: str, db_username: str, db_password: str):
         from db_reader import DBReader
 
-        self._db_writer = DBReader(
+        self._db_reader = DBReader(
             db_name=db_name, db_username=db_username, db_password=db_password
         )
 
@@ -113,8 +114,18 @@ class DataProcessor:
             sensor_reading=received_data.get(constant.SENSOR_FEED_VALUE),
         )
 
-    # def get_from_db(self):
-    #     self._db_writer.get_all_readings()
+    def grant_db_access(self, full_name: str):
+        # Remove any space between name and surname to make the username
+        username = full_name.replace(" ", "")
+        # Generate a random number made up of 5 digits to make the password
+        password = ''.join(random.choices("0123456789", k=5))
+
+        self._db_writer.add_new_user(username=username, password=password)
+
+        return username, password
+
+    def get_from_db(self):
+        self._db_reader.get_all_readings()
 
     def get_list_of_items(self, data_received_queue: Queue) -> List[float]:
         """Append each items of a Queue into a List by emptying the queue.

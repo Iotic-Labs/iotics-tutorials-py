@@ -24,9 +24,9 @@ from utilities import (
 log = logging.getLogger(__name__)
 
 
-class DataReaderConnector:
+class HistorianReaderConnector:
     def __init__(self, data_processor: DataProcessor):
-        """Constructor of a Data Reader Connector object.
+        """Constructor of a Historian Reader Connector object.
 
         Args:
             data_processor (DataProcessor): object simulating a data processor engine.
@@ -37,7 +37,7 @@ class DataReaderConnector:
         self._iotics_api: IoticsApi = None
         self._refresh_token_lock: Lock = None
         self._threads_list: List[Thread] = None
-        self._data_reader_twin_did: str = None
+        self._historian_reader_twin_did: str = None
 
         self._initialise()
 
@@ -47,15 +47,15 @@ class DataReaderConnector:
         regenerated when it expires.
         """
 
-        log.debug("Initialising Data Reader Connector...")
-        endpoints = get_host_endpoints(host_url=os.getenv("DATAREADER_HOST_URL"))
+        log.debug("Initialising Historian Reader Connector...")
+        endpoints = get_host_endpoints(host_url=os.getenv("HISTORIANREADER_HOST_URL"))
         self._iotics_identity = Identity(
             resolver_url=endpoints.get("resolver"),
             grpc_endpoint=endpoints.get("grpc"),
             user_key_name=os.getenv("USER_KEY_NAME"),
             user_seed=os.getenv("USER_SEED"),
-            agent_key_name=os.getenv("DATAREADER_CONNECTOR_AGENT_KEY_NAME"),
-            agent_seed=os.getenv("DATAREADER_CONNECTOR_AGENT_SEED"),
+            agent_key_name=os.getenv("HISTORIANREADER_CONNECTOR_AGENT_KEY_NAME"),
+            agent_seed=os.getenv("HISTORIANREADER_CONNECTOR_AGENT_SEED"),
         )
         log.debug("IOTICS Identity initialised")
         self._iotics_api = IoticsApi(auth=self._iotics_identity)
@@ -84,12 +84,21 @@ class DataReaderConnector:
                 key=constant.PROPERTY_KEY_TYPE, value=constant.REQUEST, is_uri=True
             ),
             create_property(
-                key=constant.PROPERTY_KEY_LABEL, value="Data Reader", language="en"
+                key=constant.PROPERTY_KEY_LABEL, value="Historian Reader", language="en"
             ),
             create_property(
                 key=constant.PROPERTY_KEY_COMMENT,
                 value="Read data from Database",
                 language="en",
+            ),
+            create_property(
+                key=constant.FULL_NAME, value=constant.PROPERTY_VALUE_CREATED_BY_NAME
+            ),
+            create_property(
+                key=constant.ORGANISATION, value=constant.ORGANISATION_VALUE
+            ),
+            create_property(
+                key=constant.EMAIL_ADDRESS, value=constant.EMAIL_ADDRESS_VALUE
             ),
             create_property(
                 key=constant.PROPERTY_KEY_CREATED_BY,
@@ -145,16 +154,16 @@ class DataReaderConnector:
         return twin_structure
 
     def _create_twin(self, twin_structure: TwinStructure):
-        """Create the Data Reader Twin given a Twin Structure.
+        """Create the Historian Reader Twin given a Twin Structure.
 
         Args:
             twin_structure (TwinStructure): Structure of the Data Reader Twin to create.
         """
 
-        log.info("Creating Data Reader Twin...")
+        log.info("Creating Historian Reader Twin...")
 
         twin_identity = self._iotics_identity.create_twin_with_control_delegation(
-            twin_key_name="DataReaderTwin"
+            twin_key_name="HistorianReaderTwin"
         )
         twin_did = twin_identity.did
         log.debug("Generated new Twin DID: %s", twin_did)
@@ -168,14 +177,14 @@ class DataReaderConnector:
             inputs=twin_structure.inputs_list,
         )
 
-        log.info("Created Data Reader Twin with DID: %s", twin_did)
+        log.info("Created Historian Reader Twin with DID: %s", twin_did)
 
-        self._data_reader_twin_did = twin_did
+        self._historian_reader_twin_did = twin_did
 
     def _process_request(self, new_input_message):
         received_data, _ = self._data_processor.input_data_unpack(new_input_message)
 
-        db_name = received_data.get(constant.DB_URL_INPUT_VALUE)
+        db_name = received_data.get(constant.DB_NAME_INPUT_VALUE)
         db_username = received_data.get(constant.DB_USERNAME_INPUT_VALUE)
         db_password = received_data.get(constant.DB_PASSWORD_INPUT_VALUE)
 
@@ -195,7 +204,7 @@ class DataReaderConnector:
                 self._iotics_api.receive_input_messages,
                 "receive_input_messages",
                 self._refresh_token_lock,
-                twin_did=self._data_reader_twin_did,
+                twin_did=self._historian_reader_twin_did,
                 input_id=constant.DB_ACCESS_INFO_INPUT_ID,
             )
 
@@ -203,7 +212,7 @@ class DataReaderConnector:
                 for new_input_message in input_listener:
                     # Print Input Message received on screen
                     self._data_processor.print_input_message_on_screen(
-                        receiver_twin_did=self._data_reader_twin_did,
+                        receiver_twin_did=self._historian_reader_twin_did,
                         receiver_input_id=constant.DB_ACCESS_INFO_INPUT_ID,
                         input_message=new_input_message,
                     )
@@ -260,38 +269,19 @@ class DataReaderConnector:
         for data_bypass_twin in data_bypass_twins_list:
             data_bypass_twin_id = data_bypass_twin.twinId.id
             message_to_send = {
-                constant.FULL_NAME_INPUT_VALUE: "",
-                constant.ORGANISATION_INPUT_VALUE: "IBM",
-                constant.EMAIL_INPUT_VALUE: "",
-                constant.TWIN_ID_INPUT_VALUE: self._data_reader_twin_did,
+                constant.SENDER_TWIN_ID_VALUE: self._historian_reader_twin_did
             }
 
             self._iotics_api.send_input_message(
-                sender_twin_did=self._data_reader_twin_did,
+                sender_twin_did=self._historian_reader_twin_did,
                 receiver_twin_did=data_bypass_twin_id,
                 input_id=constant.VERIFICATION_INFO_INPUT_ID,
                 message=message_to_send,
             )
-            log.info(
+            log.debug(
                 "Sent Input Message %s to %s", message_to_send, data_bypass_twin_id
             )
-
-            message_to_send = {
-                constant.FULL_NAME_INPUT_VALUE: "",
-                constant.ORGANISATION_INPUT_VALUE: "IOTICS",
-                constant.EMAIL_INPUT_VALUE: "",
-                constant.TWIN_ID_INPUT_VALUE: self._data_reader_twin_did,
-            }
-
-            self._iotics_api.send_input_message(
-                sender_twin_did=self._data_reader_twin_did,
-                receiver_twin_did=data_bypass_twin_id,
-                input_id=constant.VERIFICATION_INFO_INPUT_ID,
-                message=message_to_send,
-            )
-            log.info(
-                "Sent Input Message %s to %s", message_to_send, data_bypass_twin_id
-            )
+            log.info("DB access request sent")
 
     def start(self):
         twin_structure = self._setup_twin_structure()

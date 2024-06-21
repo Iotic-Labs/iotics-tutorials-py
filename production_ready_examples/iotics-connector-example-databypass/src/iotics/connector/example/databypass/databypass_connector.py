@@ -55,7 +55,13 @@ class DataBypassConnector:
         log.debug("IOTICS Identity initialised")
         self._iotics_api = IoticsApi(auth=self._iotics_identity)
         log.debug("IOTICS gRPC API initialised")
-        
+
+        self._data_processor.initialise_db_writer(
+            db_name=os.getenv("DB_NAME"),
+            db_username=os.getenv("DB_USERNAME"),
+            db_password=os.getenv("DB_PASSWORD"),
+        )
+
         self._refresh_token_lock = Lock()
         self._threads_list = []
 
@@ -94,39 +100,22 @@ class DataBypassConnector:
             ),
         ]
 
-        verification_info_input_properties = [
+        requester_input_properties = [
             create_property(
-                key=constant.PROPERTY_KEY_TYPE, value=constant.VERIFICATION, is_uri=True
+                key=constant.PROPERTY_KEY_TYPE, value=constant.REQUEST, is_uri=True
             ),
             create_property(
-                key=constant.PROPERTY_KEY_LABEL,
-                value="Verification Info",
-                language="en",
+                key=constant.PROPERTY_KEY_LABEL, value="Requester Info", language="en"
             ),
             create_property(
                 key=constant.PROPERTY_KEY_COMMENT,
-                value="Verification Info of a person who wants to access the Data Archive",
+                value="Requester Info of an entity who wants to access the Data Archive",
                 language="en",
             ),
         ]
-        verification_info_input_values = [
+        requester_input_values = [
             create_value(
-                label=constant.FULL_NAME_INPUT_VALUE,
-                data_type="string",
-                comment="Full name of the person who wants to access the Data Archive",
-            ),
-            create_value(
-                label=constant.ORGANISATION_INPUT_VALUE,
-                data_type="string",
-                comment="Organisation of the person who wants to access the Data Archive",
-            ),
-            create_value(
-                label=constant.EMAIL_INPUT_VALUE,
-                data_type="string",
-                comment="Email address of the person who wants to access the Data Archive",
-            ),
-            create_value(
-                label=constant.TWIN_ID_INPUT_VALUE,
+                label=constant.SENDER_TWIN_ID_VALUE,
                 data_type="string",
                 comment="Twin ID that requested access the Data Archive",
             ),
@@ -135,8 +124,8 @@ class DataBypassConnector:
         inputs_list = [
             create_input_with_meta(
                 input_id=constant.VERIFICATION_INFO_INPUT_ID,
-                properties=verification_info_input_properties,
-                values=verification_info_input_values,
+                properties=requester_input_properties,
+                values=requester_input_values,
             )
         ]
 
@@ -175,18 +164,47 @@ class DataBypassConnector:
         self._data_bypass_twin_did = twin_did
 
     def _process_request(self, new_input_message):
+        log.debug("Processing request...")
         received_data, _ = self._data_processor.input_data_unpack(new_input_message)
 
-        organisation = received_data.get(constant.ORGANISATION_INPUT_VALUE)
-        twin_requester_id = received_data.get(constant.TWIN_ID_INPUT_VALUE)
+        twin_requester_id = received_data.get(constant.SENDER_TWIN_ID_VALUE)
 
+        log.debug("Describing Twin %s...", twin_requester_id)
+        twin_description = self._iotics_api.describe_twin(twin_did=twin_requester_id)
+        twin_receiver_properties = twin_description.payload.result.properties
+
+        organisation = None
+        full_name = None
+        email_address = None
+        for twin_property in twin_receiver_properties:
+            if twin_property.key == constant.ORGANISATION:
+                organisation = twin_property.stringLiteralValue.value
+            elif twin_property.key == constant.FULL_NAME:
+                full_name = twin_property.stringLiteralValue.value
+            elif twin_property.key == constant.EMAIL_ADDRESS:
+                email_address = twin_property.stringLiteralValue.value
+
+        if not organisation:
+            log.info("Organisation unknown. Ignoring request")
+            return
+
+        log.info(
+            "Received new request from %s at %s email %s",
+            full_name,
+            organisation,
+            email_address,
+        )
         if organisation in constant.ORGANISATIONS_ALLOWED_LIST:
             log.info("Organisation '%s' allowed to receive DB access", organisation)
 
+            username, password = self._data_processor.grant_db_access(
+                full_name=full_name
+            )
+
             message_to_send = {
-                constant.DB_NAME_INPUT_VALUE: "name",
-                constant.DB_USERNAME_INPUT_VALUE: "usr",
-                constant.DB_PASSWORD_INPUT_VALUE: "psw",
+                constant.DB_NAME_INPUT_VALUE: os.getenv("DB_NAME"),
+                constant.DB_USERNAME_INPUT_VALUE: username,
+                constant.DB_PASSWORD_INPUT_VALUE: password,
             }
 
             self._iotics_api.send_input_message(
@@ -224,11 +242,11 @@ class DataBypassConnector:
             try:
                 for new_input_message in input_listener:
                     # Print Input Message received on screen
-                    self._data_processor.print_input_message_on_screen(
-                        receiver_twin_did=self._data_bypass_twin_did,
-                        receiver_input_id=constant.VERIFICATION_INFO_INPUT_ID,
-                        input_message=new_input_message,
-                    )
+                    # self._data_processor.print_input_message_on_screen(
+                    #     receiver_twin_did=self._data_bypass_twin_did,
+                    #     receiver_input_id=constant.VERIFICATION_INFO_INPUT_ID,
+                    #     input_message=new_input_message,
+                    # )
 
                     self._process_request(new_input_message)
             except grpc.RpcError as grpc_ex:
@@ -253,9 +271,10 @@ class DataBypassConnector:
 
         twin_structure = self._setup_twin_structure()
         self._create_twin(twin_structure)
-        thread = Thread(target=self._wait_for_input_messages)
-        thread.start()
-        self._threads_list.append(thread)
+        self._wait_for_input_messages()
+        # thread = Thread(target=self._wait_for_input_messages)
+        # thread.start()
+        # self._threads_list.append(thread)
 
         # for thread in self._threads_list:
         #     thread.join()

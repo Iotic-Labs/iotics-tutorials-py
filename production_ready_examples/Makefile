@@ -44,16 +44,16 @@ example-synthesiser-down:
 	$(Q) docker-compose -f docker/docker-compose.yaml down synthesiser
 
 example-databypass-run:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build databypass
+	$(Q) docker-compose -f docker/docker-compose.yaml up --build historian_reader
 
 example-databypass-run-detached:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build databypass -d
+	$(Q) docker-compose -f docker/docker-compose.yaml up --build historian_reader -d
 
 example-databypass-logs:
-	$(Q) docker-compose -f docker/docker-compose.yaml logs databypass -f
+	$(Q) docker-compose -f docker/docker-compose.yaml logs historian_reader -f
 
 example-databypass-down:
-	$(Q) docker-compose -f docker/docker-compose.yaml down databypass
+	$(Q) docker-compose -f docker/docker-compose.yaml down historian_reader
 
 example-all-run:
 	$(Q) docker-compose -f docker/docker-compose.yaml up --build

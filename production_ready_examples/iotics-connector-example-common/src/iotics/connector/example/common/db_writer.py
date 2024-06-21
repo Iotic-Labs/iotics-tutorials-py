@@ -3,6 +3,7 @@ from queue import Queue
 from threading import Thread
 
 from db_manager import DBManager, SensorReading
+from sqlalchemy import text
 from sqlalchemy_utils import create_database, database_exists
 
 log = logging.getLogger(__name__)
@@ -83,3 +84,19 @@ class DBWriter(DBManager):
 
         self._queue.put(sensor_reading_obj)
         log.debug("Item added to the queue")
+
+    def add_new_user(self, username: str, password: str):
+        create_new_user_sql = text(f"CREATE USER {username} WITH PASSWORD :password;")
+        grant_privileges_sql = text(f"GRANT ALL PRIVILEGES ON DATABASE {self._db_name} TO {username};")
+
+        try:
+            self._session.execute(create_new_user_sql, {'password': password})
+            self._session.execute(grant_privileges_sql)
+            self._session.commit()
+        except Exception as ex:
+            self._session.rollback()
+            log.error("An error occurred: %s", ex)
+        else:
+            log.info("User %s created and privileges granted successfully", username)
+        finally:
+            self._session.close()
