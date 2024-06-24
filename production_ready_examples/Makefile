@@ -7,56 +7,21 @@ else
   VENV_PATH_DIR = bin
 endif
 
-example-publisher-run:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build publisher
+SERVICES = publisher follower synthesiser databypass historian_reader
 
-example-publisher-run-detached:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build publisher -d
+define SERVICE_COMMANDS
+example-run $(1):
+	$(Q) docker-compose -f docker/docker-compose.yaml up --build $(1)
 
-example-publisher-logs:
-	$(Q) docker-compose -f docker/docker-compose.yaml logs publisher -f
+example-run-detached $(1):
+	$(Q) docker-compose -f docker/docker-compose.yaml up --build $(1) -d
 
-example-publisher-down:
-	$(Q) docker-compose -f docker/docker-compose.yaml down publisher
+example-logs $(1):
+	$(Q) docker-compose -f docker/docker-compose.yaml logs $(1) -f
 
-example-follower-run:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build follower
+example-down $(1):
+	$(Q) docker-compose -f docker/docker-compose.yaml down $(1)
+endef
 
-example-follower-run-detached:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build follower -d
-
-example-follower-logs:
-	$(Q) docker-compose -f docker/docker-compose.yaml logs follower -f
-
-example-follower-down:
-	$(Q) docker-compose -f docker/docker-compose.yaml down follower
-
-example-synthesiser-run:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build synthesiser
-
-example-synthesiser-run-detached:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build synthesiser -d
-
-example-synthesiser-logs:
-	$(Q) docker-compose -f docker/docker-compose.yaml logs synthesiser -f
-
-example-synthesiser-down:
-	$(Q) docker-compose -f docker/docker-compose.yaml down synthesiser
-
-example-databypass-run:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build historian_reader
-
-example-databypass-run-detached:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build historian_reader -d
-
-example-databypass-logs:
-	$(Q) docker-compose -f docker/docker-compose.yaml logs historian_reader -f
-
-example-databypass-down:
-	$(Q) docker-compose -f docker/docker-compose.yaml down historian_reader
-
-example-all-run:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build
-
-example-all-down:
-	$(Q) docker-compose -f docker/docker-compose.yaml down
+# Generate rules for each service
+$(foreach service,$(SERVICES),$(eval $(call SERVICE_COMMANDS,$(service))))

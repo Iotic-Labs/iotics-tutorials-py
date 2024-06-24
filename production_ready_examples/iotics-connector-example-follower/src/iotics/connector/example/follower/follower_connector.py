@@ -60,7 +60,7 @@ class FollowerConnector:
         self._data_processor.initialise_db_writer(
             db_name=os.getenv("DB_NAME"),
             db_username=os.getenv("DB_USERNAME"),
-            db_password=os.getenv("DB_PASSWORD"),
+            db_password=os.getenv("POSTGRES_PASSWORD"),
         )
 
         self._refresh_token_lock = Lock()

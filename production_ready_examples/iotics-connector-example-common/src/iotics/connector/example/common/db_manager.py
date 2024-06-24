@@ -35,7 +35,7 @@ class DBManager:
     def __init__(self, db_name: str, db_username: str, db_password: str):
         check_global_var(var=db_name, var_name="DB_NAME")
         check_global_var(var=db_username, var_name="DB_USERNAME")
-        check_global_var(var=db_password, var_name="DB_PASSWORD")
+        check_global_var(var=db_password, var_name="POSTGRES_PASSWORD")
 
         self._session: Session = None
 
@@ -45,10 +45,17 @@ class DBManager:
         self._db_url: str = constant.DB_URL.format(
             username=self._db_username, password=self._db_password, db_name=db_name
         )
+        self._is_initialised: bool = False
 
     def _initialise(self):
-        log.info("Connecting to DB...")
+        log.debug("Connecting to DB...")
         engine = create_engine(self._db_url)
 
-        Base.metadata.create_all(engine)
-        self._session = Session(engine)
+        try:
+            Base.metadata.create_all(engine)
+        except Exception as ex:
+            log.error("Exception raised in initialising DB: %s", ex)
+        else:
+            self._session = Session(engine)
+            self._is_initialised = True
+            log.debug("Connected to DB")

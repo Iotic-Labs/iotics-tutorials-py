@@ -11,9 +11,12 @@ class DBReader(DBManager):
             db_username=db_username, db_password=db_password, db_name=db_name
         )
 
+    def initialise_db(self):
         self._initialise()
 
-    def get_all_readings(self):
+        return self._is_initialised
+
+    def select_all_readings_from_db(self):
         """Fetches all sensor readings from the database.
 
         Returns:
@@ -23,12 +26,11 @@ class DBReader(DBManager):
         readings = []
 
         try:
-            readings = self._session.query(SensorReading).all()
-            log.debug("Fetched all readings successfully")
+            with self._session:
+                readings = self._session.query(SensorReading).all()
         except Exception as ex:
             log.error("Error fetching all readings: %s", ex)
-
-        for reading in readings:
-            print(reading.timestamp, reading.twin_did, reading.feed_id, reading.reading)
+        else:
+            log.debug("Fetched all readings successfully")
 
         return readings

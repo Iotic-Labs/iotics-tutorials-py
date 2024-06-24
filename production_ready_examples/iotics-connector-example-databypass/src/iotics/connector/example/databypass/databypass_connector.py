@@ -59,7 +59,7 @@ class DataBypassConnector:
         self._data_processor.initialise_db_writer(
             db_name=os.getenv("DB_NAME"),
             db_username=os.getenv("DB_USERNAME"),
-            db_password=os.getenv("DB_PASSWORD"),
+            db_password=os.getenv("POSTGRES_PASSWORD"),
         )
 
         self._refresh_token_lock = Lock()
@@ -167,9 +167,11 @@ class DataBypassConnector:
         log.debug("Processing request...")
         received_data, _ = self._data_processor.input_data_unpack(new_input_message)
 
+        log.info("Received new DB request: %s", received_data)
+
         twin_requester_id = received_data.get(constant.SENDER_TWIN_ID_VALUE)
 
-        log.debug("Describing Twin %s...", twin_requester_id)
+        log.info("Describing Twin %s...", twin_requester_id)
         twin_description = self._iotics_api.describe_twin(twin_did=twin_requester_id)
         twin_receiver_properties = twin_description.payload.result.properties
 
@@ -189,13 +191,10 @@ class DataBypassConnector:
             return
 
         log.info(
-            "Received new request from %s at %s email %s",
-            full_name,
-            organisation,
-            email_address,
+            "DB request from %s at %s email %s", full_name, organisation, email_address
         )
         if organisation in constant.ORGANISATIONS_ALLOWED_LIST:
-            log.info("Organisation '%s' allowed to receive DB access", organisation)
+            log.debug("Organisation '%s' allowed to get DB access", organisation)
 
             username, password = self._data_processor.grant_db_access(
                 full_name=full_name
@@ -214,9 +213,7 @@ class DataBypassConnector:
                 message=message_to_send,
             )
 
-            log.info(
-                "Message %s sent to Twin ID %s", message_to_send, twin_requester_id
-            )
+            log.info("DB credentials sent")
         else:
             log.info(
                 "Organisation '%s' NOT allowed to receive DB access. Ignoring message",
@@ -224,7 +221,7 @@ class DataBypassConnector:
             )
 
     def _wait_for_input_messages(self):
-        log.info("Waiting for DB Requests ...")
+        log.info("Waiting for DB requests...")
 
         unexpected_exception_counter: int = 0
 
@@ -241,13 +238,6 @@ class DataBypassConnector:
 
             try:
                 for new_input_message in input_listener:
-                    # Print Input Message received on screen
-                    # self._data_processor.print_input_message_on_screen(
-                    #     receiver_twin_did=self._data_bypass_twin_did,
-                    #     receiver_input_id=constant.VERIFICATION_INFO_INPUT_ID,
-                    #     input_message=new_input_message,
-                    # )
-
                     self._process_request(new_input_message)
             except grpc.RpcError as grpc_ex:
                 # Any time the token expires, an expected gRPC exception is raised
@@ -266,15 +256,9 @@ class DataBypassConnector:
         log.debug("Exiting thread...")
 
     def start(self):
-        """Periodically create a new Twin of Archive
-        which waits for DB access requests via Input Messages."""
+        """Create a new Data Bypass Twin which waits for DB access requests
+        via Input Messages."""
 
         twin_structure = self._setup_twin_structure()
         self._create_twin(twin_structure)
         self._wait_for_input_messages()
-        # thread = Thread(target=self._wait_for_input_messages)
-        # thread.start()
-        # self._threads_list.append(thread)
-
-        # for thread in self._threads_list:
-        #     thread.join()

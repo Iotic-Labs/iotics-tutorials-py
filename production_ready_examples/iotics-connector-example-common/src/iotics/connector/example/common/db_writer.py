@@ -30,15 +30,15 @@ class DBWriter(DBManager):
         """
 
         if not database_exists(self._db_url):
-            log.info("Creating DB...")
+            log.debug("Creating DB...")
             create_database(self._db_url)
-            log.info("DB created successfully")
+            log.debug("DB created successfully")
 
         self._initialise()
 
         Thread(target=self._store).start()
 
-        log.info("DB Initialised successfully")
+        log.debug("DB Initialised successfully")
 
     def _store(self):
         """Background thread method that continuously stores sensor readings
@@ -85,18 +85,37 @@ class DBWriter(DBManager):
         self._queue.put(sensor_reading_obj)
         log.debug("Item added to the queue")
 
+    def _check_user_exists(self, username: str) -> bool:
+        """Check if a user already exists in the database."""
+
+        query = text("SELECT 1 FROM pg_roles WHERE rolname = :username;")
+        result = self._session.execute(query, {"username": username})
+        return bool(result.scalar())
+
     def add_new_user(self, username: str, password: str):
+        # Check if the user already exists
+        user_exists = self._check_user_exists(username)
+
+        if user_exists:
+            log.debug("Role %s already exists", username)
+            return
+
         create_new_user_sql = text(f"CREATE USER {username} WITH PASSWORD :password;")
-        grant_privileges_sql = text(f"GRANT ALL PRIVILEGES ON DATABASE {self._db_name} TO {username};")
+        grant_privileges_sql = text(
+            f"GRANT SELECT ON ALL TABLES IN SCHEMA public TO {username};"
+        )
 
         try:
-            self._session.execute(create_new_user_sql, {'password': password})
-            self._session.execute(grant_privileges_sql)
-            self._session.commit()
+            with self._session:
+                self._session.execute(create_new_user_sql, {"password": password})
+                self._session.execute(grant_privileges_sql)
+                self._session.commit()
         except Exception as ex:
             self._session.rollback()
             log.error("An error occurred: %s", ex)
         else:
-            log.info("User %s created and privileges granted successfully", username)
-        finally:
-            self._session.close()
+            log.info(
+                "User %s and Password %s created and SELECT privileges granted successfully",
+                username,
+                password,
+            )

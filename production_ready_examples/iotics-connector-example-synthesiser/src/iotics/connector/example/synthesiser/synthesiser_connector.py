@@ -8,7 +8,6 @@ from typing import List
 import constants as constant
 import grpc
 from data_processor import DataProcessor
-from flask import Flask
 from identity import Identity
 from iotics.lib.grpc.helpers import create_feed_with_meta, create_property, create_value
 from iotics.lib.grpc.iotics_api import IoticsApi

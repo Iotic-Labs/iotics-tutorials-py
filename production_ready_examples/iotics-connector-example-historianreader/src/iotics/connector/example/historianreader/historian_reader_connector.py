@@ -1,6 +1,7 @@
 import logging
 import os
 from threading import Lock, Thread
+from time import sleep
 from typing import List
 
 import constants as constant
@@ -181,18 +182,26 @@ class HistorianReaderConnector:
 
         self._historian_reader_twin_did = twin_did
 
-    def _process_request(self, new_input_message):
+    def _process_message(self, new_input_message):
+        log.debug("Processing message...")
         received_data, _ = self._data_processor.input_data_unpack(new_input_message)
 
         db_name = received_data.get(constant.DB_NAME_INPUT_VALUE)
         db_username = received_data.get(constant.DB_USERNAME_INPUT_VALUE)
         db_password = received_data.get(constant.DB_PASSWORD_INPUT_VALUE)
 
-        self._data_processor.initialise_db_reader(
+        log.info("Accessing DB with credentials received...")
+
+        is_db_initialised = self._data_processor.initialise_db_reader(
             db_name=db_name, db_username=db_username, db_password=db_password
         )
 
-    def _wait_for_input_messages(self):
+        if is_db_initialised:
+            self._data_processor.print_all_data_from_db()
+        else:
+            log.info("DB not initialised correctly")
+
+    def _receive_input_messages(self, input_id: str):
         log.info("Waiting for DB Credentials...")
 
         unexpected_exception_counter: int = 0
@@ -205,7 +214,7 @@ class HistorianReaderConnector:
                 "receive_input_messages",
                 self._refresh_token_lock,
                 twin_did=self._historian_reader_twin_did,
-                input_id=constant.DB_ACCESS_INFO_INPUT_ID,
+                input_id=input_id,
             )
 
             try:
@@ -213,11 +222,11 @@ class HistorianReaderConnector:
                     # Print Input Message received on screen
                     self._data_processor.print_input_message_on_screen(
                         receiver_twin_did=self._historian_reader_twin_did,
-                        receiver_input_id=constant.DB_ACCESS_INFO_INPUT_ID,
+                        receiver_input_id=input_id,
                         input_message=new_input_message,
                     )
 
-                    self._process_request(new_input_message)
+                    self._process_message(new_input_message)
             except grpc.RpcError as grpc_ex:
                 # Any time the token expires, an expected gRPC exception is raised
                 # and a new 'input_listener' object needs to be generated.
@@ -265,7 +274,7 @@ class HistorianReaderConnector:
 
         return twins_found_list
 
-    def _send_db_request_messages(self, data_bypass_twins_list):
+    def _send_db_access_request_messages(self, data_bypass_twins_list):
         for data_bypass_twin in data_bypass_twins_list:
             data_bypass_twin_id = data_bypass_twin.twinId.id
             message_to_send = {
@@ -283,10 +292,15 @@ class HistorianReaderConnector:
             )
             log.info("DB access request sent")
 
+    def _start_receiving_input_messages(self, twin_structure):
+        for input in twin_structure.inputs_list:
+            input_thread = Thread(target=self._receive_input_messages, args=[input.id])
+            input_thread.start()
+            self._threads_list.append(input_thread)
+
     def start(self):
         twin_structure = self._setup_twin_structure()
         self._create_twin(twin_structure)
-        thread = Thread(target=self._wait_for_input_messages)
-        thread.start()
+        self._start_receiving_input_messages(twin_structure)
         data_bypass_twins_list = self._search_data_bypass_twins()
-        self._send_db_request_messages(data_bypass_twins_list)
+        self._send_db_access_request_messages(data_bypass_twins_list)
