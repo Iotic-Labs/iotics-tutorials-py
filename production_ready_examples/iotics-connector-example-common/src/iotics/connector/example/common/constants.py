@@ -168,3 +168,4 @@ MEASUREMENT_TYPE_VALUES = [
 ]
 
 SERVICE_TYPE_VALUES = ["Water", "Gas", "Electric", "Other", "HeatingControl"]
+UNKNOWN = ""

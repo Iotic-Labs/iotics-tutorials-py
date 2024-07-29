@@ -77,34 +77,41 @@ class FollowerConnector:
     def _parse_sensor_description(self, sensor_description: str):
         description_list = sensor_description.split("_")
 
-        floor_name = room_name = service_type = object_name = measurement_type = ""
+        floor_name = room_name = service_type = object_name = measurement_type = (
+            constant.UNKNOWN
+        )
 
-        for description in description_list[1:]:
-            description_lower = description.lower()
-            if description_lower in [
-                floor_name_value.lower()
-                for floor_name_value in constant.FLOOR_NAME_VALUES
-            ]:
-                floor_name = description
-            elif description_lower in [
-                room_name_value.lower() for room_name_value in constant.ROOM_NAME_VALUES
-            ]:
-                room_name = description
-            elif description_lower in [
-                service_type_value.lower()
-                for service_type_value in constant.SERVICE_TYPE_VALUES
-            ]:
-                service_type = description
-            elif description_lower in [
-                object_name_value.lower()
-                for object_name_value in constant.OBJECT_NAME_VALUES
-            ]:
-                object_name = description
-            elif description_lower in [
-                measurement_type_value.lower()
-                for measurement_type_value in constant.MEASUREMENT_TYPE_VALUES
-            ]:
-                measurement_type = description
+        if len(description_list) < 2:
+            description_list[0] = constant.UNKNOWN
+
+        elif description_list[1].startswith("Floor"):
+            floor_name = description_list[1]
+            service_type = description_list[3]
+            room_name = (
+                description_list[2] if len(description_list) > 4 else constant.UNKNOWN
+            )
+            object_name = (
+                description_list[4] if len(description_list) > 4 else constant.UNKNOWN
+            )
+        else:
+            room_name = (
+                description_list[1] if len(description_list) > 4 else constant.UNKNOWN
+            )
+            service_type = (
+                description_list[2]
+                if len(description_list) > 4
+                else description_list[1]
+            )
+            object_name = (
+                description_list[3]
+                if len(description_list) > 4
+                else description_list[2]
+            )
+
+        if description_list[-1] == object_name:
+            object_name = constant.UNKNOWN
+
+        measurement_type = description_list[-1]
 
         sensor_dict = {
             "house_number": description_list[0],
@@ -151,6 +158,18 @@ class FollowerConnector:
         twin_structure = TwinStructure(properties=twin_properties)
 
         return twin_structure
+
+    @staticmethod
+    def _get_twin_label(twin_properties):
+        twin_label = None
+
+        for twin_property in twin_properties:
+            property_key = twin_property.key
+            if property_key == constant.PROPERTY_KEY_LABEL:
+                twin_label = twin_property.stringLiteralValue.value
+                break
+
+        return twin_label
 
     def _create_twin(self, twin_structure: TwinStructure):
         """Create the Twin Follower given a Twin Structure.
@@ -311,6 +330,15 @@ class FollowerConnector:
         received_data, occurred_at_timestamp = self._decode_data(
             last_shared_data_payload
         )
+
+        sensor: dict = self._sensors_data.get(sensor_key, {})
+        if not sensor or not sensor.get("house_number"):
+            twin_description = self._iotics_api.describe_twin(publisher_twin_did)
+            twin_properties = twin_description.payload.result.properties
+            twin_label = self._get_twin_label(twin_properties)
+            sensor_dict = self._parse_sensor_description(twin_label)
+
+            self._sensors_data.update({sensor_key: sensor_dict})
 
         if received_data and occurred_at_timestamp:
             self._sensors_data[sensor_key].update(
