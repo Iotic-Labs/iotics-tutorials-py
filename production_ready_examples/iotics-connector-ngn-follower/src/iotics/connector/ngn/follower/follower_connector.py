@@ -217,7 +217,7 @@ class FollowerConnector:
         )
 
         twins_found_list = search_twins(
-            search_criteria, self._refresh_token_lock, self._iotics_api, True, 10
+            search_criteria, self._refresh_token_lock, self._iotics_api, True, 30
         )
 
         log.info("Found %d Twins based on the search criteria", len(twins_found_list))
