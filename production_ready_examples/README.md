@@ -10,11 +10,19 @@ This module provides an example of a Publisher Connector that simulates the crea
 
 ### iotics-connector-example-historianwriter
 
-This module provides an example of a Follower Connector that searches for Sensor Twins with the goal of storing Feed's data about Temperature and Humidity into a Database. An Historian Writer Twin is created which waits for new data samples to be received. Overall, this module demonstrates how a follower connector can interact with sensor twins, receive Feed data and process it accordingly.
+This module provides an example of a Follower Connector that searches for Sensor Twins with the goal of storing Feed's data about Temperature and Humidity into a Postgres Database. A Historian Writer Twin is created which waits for new data samples to be received. Overall, this module demonstrates how a follower connector can interact with sensor twins, receive Feed data and process it accordingly.
 
 ### iotics-connector-example-synthesiser
 
 This module provides an example of a Synthesiser Connector that searches for Sensor Twins with the goal of performing computations on the data and sharing the results to the IOTICSpace. Specifically, a Twin Synthesiser with 2 Feeds is created which waits for new data samples to be received. It then periodically computes the average of the received data, along with the Min and Max values. Finally, it shares the synthesised data (Average and Min/Max) via the related Feeds. Overall, this module demonstrates how a Synthesiser Connector can interact with Sensor Twins, receive feed data, process it and share the synthesised data back to an IOTICSpace.
+
+### iotics-connector-example-databypass
+
+This module provides an example of using the Data Bypass pattern to grant database access to a user. The Data Bypass Connector creates a Twin with an Input that waits for incoming database requests. Upon receiving a request, the Connector describes the requesting Twin to verify its eligibility for database access. If the requester is allowed, new credentials are generated, and a new user is added to the database. The credentials are then sent back to the requesting Twin's Input, enabling them to access the database.
+
+### iotics-connector-example-historianreader
+
+This module provides an example of requesting database (DB) access and extracting data from it. Specifically, a Historian Reader Twin is created to send DB requests via Input messages to the Data Bypass Twin and receive DB credentials to access and extract data from it.
 
 ### iotics-connector-example-common
 
