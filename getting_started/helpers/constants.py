@@ -4,13 +4,11 @@ COMMENT = "http://www.w3.org/2000/01/rdf-schema#comment"
 CREATED_BY = "https://data.iotics.com/app#createdBy"
 DEFINES = "https://data.iotics.com/app#defines"
 TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
-TWIN_FROM_MODEL = "https://data.iotics.com/app#model"
 COLOUR = "https://data.iotics.com/app#color"
 HOST_ALLOW_LIST = "http://data.iotics.com/public#hostAllowList"
 HOST_METADATA_ALLOW_LIST = "http://data.iotics.com/public#hostMetadataAllowList"
 
 # TWIN PROPERTY VALUES
-TWIN_MODEL = "https://data.iotics.com/app#Model"
 ALLOW_ALL = "http://data.iotics.com/public#all"
 ALLOW_NONE = "http://data.iotics.com/public#none"
 
