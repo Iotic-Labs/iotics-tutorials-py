@@ -7,44 +7,26 @@ else
   VENV_PATH_DIR = bin
 endif
 
-example-publisher-run:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build publisher
+DOCKER_COMPOSE = docker compose -f docker/docker-compose.yaml
 
-example-publisher-run-detached:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build publisher -d
+define DOCKER_TARGET
+example-$(1)-run:
+	$(Q) $(DOCKER_COMPOSE) up --build $(1)
 
-example-publisher-logs:
-	$(Q) docker-compose -f docker/docker-compose.yaml logs publisher -f
+example-$(1)-run-detached:
+	$(Q) $(DOCKER_COMPOSE) up --build $(1) -d
 
-example-publisher-down:
-	$(Q) docker-compose -f docker/docker-compose.yaml down publisher
+example-$(1)-logs:
+	$(Q) $(DOCKER_COMPOSE) logs $(1) -f
 
-example-follower-run:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build follower
+example-$(1)-down:
+	$(Q) $(DOCKER_COMPOSE) down $(1)
+endef
 
-example-follower-run-detached:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build follower -d
-
-example-follower-logs:
-	$(Q) docker-compose -f docker/docker-compose.yaml logs follower -f
-
-example-follower-down:
-	$(Q) docker-compose -f docker/docker-compose.yaml down follower
-
-example-synthesiser-run:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build synthesiser
-
-example-synthesiser-run-detached:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build synthesiser -d
-
-example-synthesiser-logs:
-	$(Q) docker-compose -f docker/docker-compose.yaml logs synthesiser -f
-
-example-synthesiser-down:
-	$(Q) docker-compose -f docker/docker-compose.yaml down synthesiser
+$(foreach service,publisher historian_writer synthesiser databypass historian_reader,$(eval $(call DOCKER_TARGET,$(service))))
 
 example-all-run:
-	$(Q) docker-compose -f docker/docker-compose.yaml up --build
+	$(Q) $(DOCKER_COMPOSE) up --build
 
 example-all-down:
-	$(Q) docker-compose -f docker/docker-compose.yaml down
+	$(Q) $(DOCKER_COMPOSE) down

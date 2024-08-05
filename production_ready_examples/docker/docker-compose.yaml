@@ -20,30 +20,23 @@ services:
     env_file:
       - ".env"
     networks: ["connector-example"]
+    environment:
+      - TZ=Europe/London
 
-  # Follower Connector
-  follower:
-    container_name: "follower"
+  # Historian Writer Connector
+  historian_writer:
+    container_name: "historian_writer"
     build:
       context: ".."
-      dockerfile: "iotics-connector-example-follower/Dockerfile"
+      dockerfile: "iotics-connector-example-historianwriter/Dockerfile"
     command: "python3 /home/iotics/app/main.py"
     env_file:
       - ".env"
     depends_on:
       - postgres
     networks: ["connector-example"]
-
-  # Postgres DB used by the Follower Connector
-  postgres:
-    image: postgres:16
     environment:
-      POSTGRES_PASSWORD: "iotics"
-    ports:
-      - '5438:5432'
-    volumes:
-      - db:/var/lib/postgresql/data
-    networks: ["connector-example"]
+      - TZ=Europe/London
   
   # Synthesiser Connector
   synthesiser:
@@ -54,6 +47,48 @@ services:
     command: "python3 /home/iotics/app/main.py"
     env_file:
       - ".env"
+    networks: ["connector-example"]
+    environment:
+      - TZ=Europe/London
+
+  # Databypass Connector
+  databypass:
+    container_name: "databypass"
+    build:
+      context: ".."
+      dockerfile: "iotics-connector-example-databypass/Dockerfile"
+    command: "python3 /home/iotics/app/main.py"
+    env_file:
+      - ".env"
+    depends_on:
+      - postgres
+    networks: ["connector-example"]
+    environment:
+      - TZ=Europe/London
+
+  # Historian Reader Connector
+  historian_reader:
+    container_name: "historian_reader"
+    build:
+      context: ".."
+      dockerfile: "iotics-connector-example-historianreader/Dockerfile"
+    command: "python3 /home/iotics/app/main.py"
+    env_file:
+      - ".env"
+    networks: ["connector-example"]
+    environment:
+      - TZ=Europe/London
+
+  # Postgres DB
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_LOG_MIN_MESSAGES: ${POSTGRES_LOG_LEVEL}
+    ports:
+      - '5438:5432'
+    volumes:
+      - db:/var/lib/postgresql/data
     networks: ["connector-example"]
 
 networks:

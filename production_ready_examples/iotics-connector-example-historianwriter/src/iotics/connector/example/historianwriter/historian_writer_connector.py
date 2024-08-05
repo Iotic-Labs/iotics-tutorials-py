@@ -20,9 +20,9 @@ from utilities import (
 log = logging.getLogger(__name__)
 
 
-class FollowerConnector:
+class HistorianWriterConnector:
     def __init__(self, data_processor: DataProcessor):
-        """Constructor of a Follower Connector object.
+        """Constructor of a Historian Writer Connector object.
 
         Args:
             data_processor (DataProcessor): object simulating a data processor engine.
@@ -32,7 +32,7 @@ class FollowerConnector:
         self._iotics_identity: Identity = None
         self._iotics_api: IoticsApi = None
         self._refresh_token_lock: Lock = None
-        self._twin_follower_did: str = None
+        self._historian_writer_twin_did: str = None
         self._threads_list: List[Thread] = None
 
         self._initialise()
@@ -43,19 +43,25 @@ class FollowerConnector:
         regenerated when it expires.
         """
 
-        log.debug("Initialising Follower Connector...")
-        endpoints = get_host_endpoints(host_url=os.getenv("FOLLOWER_HOST_URL"))
+        log.debug("Initialising Historian Writer Connector...")
+        endpoints = get_host_endpoints(host_url=os.getenv("HISTORIAN_WRITER_HOST_URL"))
         self._iotics_identity = Identity(
             resolver_url=endpoints.get("resolver"),
             grpc_endpoint=endpoints.get("grpc"),
             user_key_name=os.getenv("USER_KEY_NAME"),
             user_seed=os.getenv("USER_SEED"),
-            agent_key_name=os.getenv("FOLLOWER_CONNECTOR_AGENT_KEY_NAME"),
-            agent_seed=os.getenv("FOLLOWER_CONNECTOR_AGENT_SEED"),
+            agent_key_name=os.getenv("HISTORIAN_WRITER_CONNECTOR_AGENT_KEY_NAME"),
+            agent_seed=os.getenv("HISTORIAN_WRITER_CONNECTOR_AGENT_SEED"),
         )
         log.debug("IOTICS Identity initialised")
         self._iotics_api = IoticsApi(auth=self._iotics_identity)
         log.debug("IOTICS gRPC API initialised")
+
+        self._data_processor.initialise_db_writer(
+            db_name=os.getenv("DB_NAME"),
+            db_username=os.getenv("DB_USERNAME"),
+            db_password=os.getenv("POSTGRES_PASSWORD"),
+        )
 
         self._refresh_token_lock = Lock()
         self._threads_list = []
@@ -80,11 +86,11 @@ class FollowerConnector:
                 key=constant.PROPERTY_KEY_TYPE, value=constant.DATA_STORE, is_uri=True
             ),
             create_property(
-                key=constant.PROPERTY_KEY_LABEL, value="Twin Follower", language="en"
+                key=constant.PROPERTY_KEY_LABEL, value="Historian Writer", language="en"
             ),
             create_property(
                 key=constant.PROPERTY_KEY_COMMENT,
-                value="Twin Follower that receives Twin Sensors' data about Temperature and Humidity",
+                value="Write data to DB about Temperature and Humidity",
                 language="en",
             ),
             create_property(
@@ -98,31 +104,32 @@ class FollowerConnector:
         return twin_structure
 
     def _create_twin(self, twin_structure: TwinStructure):
-        """Create the Twin Follower given a Twin Structure.
+        """Create the Historian Writer Twin given a Twin Structure.
 
         Args:
-            twin_structure (TwinStructure): Structure of the Twin Follower to create.
+            twin_structure (TwinStructure): Structure of the Historian Writer Twin to create.
         """
 
-        log.info("Creating Twin Follower...")
+        log.info("Creating Historian Writer Twin...")
 
-        twin_follower_identity = (
-            self._iotics_identity.create_twin_with_control_delegation(
-                twin_key_name="TwinFollower"
-            )
+        twin_identity = self._iotics_identity.create_twin_with_control_delegation(
+            twin_key_name="HistorianWriterTwin"
         )
-        self._twin_follower_did = twin_follower_identity.did
-        log.debug("Generated new Twin DID: %s", self._twin_follower_did)
+        self._historian_writer_twin_did = twin_identity.did
+        log.debug("Generated new Twin DID: %s", self._historian_writer_twin_did)
 
         retry_on_exception(
-            self._iotics_api.upsert_twin,
-            "upsert_twin",
-            self._refresh_token_lock,
-            twin_did=self._twin_follower_did,
+            grpc_operation=self._iotics_api.upsert_twin,
+            function_name="upsert_twin",
+            refresh_token_lock=self._refresh_token_lock,
+            twin_did=self._historian_writer_twin_did,
             properties=twin_structure.properties,
         )
 
-        log.info("Created Twin Follower with DID: %s", self._twin_follower_did)
+        log.info(
+            "Created Historian Writer Twin with DID: %s",
+            self._historian_writer_twin_did,
+        )
 
     def _search_sensor_twins(self):
         """Search for the Sensor Twins.
@@ -146,7 +153,10 @@ class FollowerConnector:
         )
 
         twins_found_list = search_twins(
-            search_criteria, self._refresh_token_lock, self._iotics_api, True
+            search_criteria=search_criteria,
+            refresh_token_lock=self._refresh_token_lock,
+            iotics_api=self._iotics_api,
+            keep_searching=True,
         )
 
         log.info("Found %d Twins based on the search criteria", len(twins_found_list))
@@ -156,7 +166,7 @@ class FollowerConnector:
     def _get_feed_data(self, publisher_twin_did: str, publisher_feed_id: str):
         """Entry point for each Thread. Within an infinite loop
         get a new feed listener given the info about the Twin and Feed to follow
-        alongside the Twin Follower's DID. Wait for new data samples, then process it.
+        alongside the Historian Writer Twin's DID. Wait for new data samples, then process it.
         In case of an expected exception (i.e.: token expired), generate a new
         feed listener and wait again for new data samples.
 
@@ -166,7 +176,7 @@ class FollowerConnector:
         """
 
         log.info(
-            "Getting Feed data from Twin %s, Feed %s...",
+            "Waiting for Feed data from Twin %s, Feed %s...",
             publisher_twin_did,
             publisher_feed_id,
         )
@@ -176,10 +186,10 @@ class FollowerConnector:
         while True:
             log.debug("Generating a new feed_listener...")
             feed_listener = retry_on_exception(
-                self._iotics_api.fetch_interests,
-                "fetch_interests",
-                self._refresh_token_lock,
-                follower_twin_did=self._twin_follower_did,
+                grpc_operation=self._iotics_api.fetch_interests,
+                function_name="fetch_interests",
+                refresh_token_lock=self._refresh_token_lock,
+                follower_twin_did=self._historian_writer_twin_did,
                 followed_twin_did=publisher_twin_did,
                 followed_feed_id=publisher_feed_id,
                 # 'fetch_last_stored' is set to False
@@ -196,16 +206,15 @@ class FollowerConnector:
                         publisher_twin_did,
                         publisher_feed_id,
                     )
-                    feed_data_payload = latest_feed_data.payload
 
                     # Print data received on screen
-                    self._data_processor.print_on_screen(
-                        publisher_twin_did, publisher_feed_id, feed_data_payload
+                    self._data_processor.print_feed_data_on_screen(
+                        publisher_twin_did, publisher_feed_id, latest_feed_data
                     )
 
                     # Export data receved to DB
                     self._data_processor.export_to_db(
-                        publisher_twin_did, publisher_feed_id, feed_data_payload
+                        publisher_twin_did, publisher_feed_id, latest_feed_data
                     )
             except grpc.RpcError as grpc_ex:
                 # Any time the token expires, an expected gRPC exception is raised
@@ -250,7 +259,8 @@ class FollowerConnector:
                 self._threads_list.append(feed_thread)
 
     def start(self):
-        """Create the Twin Follower, search for Sensor Twins and follow their Feeds."""
+        """Create the Historian Writer Twin,
+        search for Sensor Twins and follow their Feeds."""
 
         twin_structure = self._setup_twin_structure()
         self._create_twin(twin_structure)

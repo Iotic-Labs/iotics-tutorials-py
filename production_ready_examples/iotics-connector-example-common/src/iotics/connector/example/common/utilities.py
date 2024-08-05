@@ -50,6 +50,7 @@ def search_twins(
     search_criteria: search_pb2.SearchRequest.Payload,
     refresh_token_lock: Lock,
     iotics_api: IoticsApi,
+    scope: str = "LOCAL",
     keep_searching: bool = True,
 ):
     """Wrapper of the Search Twin operation to help checking for errors
@@ -60,6 +61,8 @@ def search_twins(
             text, properties and/or location;
         refresh_token_lock (Lock): used to prevent race conditions.
         iotics_api (IoticsApi): the instance of Identity API used to manage IOTICS Identities
+        scope (str, optional): whether to search Twins in the same Space ('LOCAL', default)
+            or in the entire Network ('GLOBAL').
         keep_searching (bool, optional): whether to keep searching if the result is an empty list.
             Defaults to True.
 
@@ -74,7 +77,7 @@ def search_twins(
             try:
                 with refresh_token_lock:
                     for response in iotics_api.search_iter(
-                        client_app_id=uuid4().hex, payload=search_criteria
+                        client_app_id=uuid4().hex, payload=search_criteria, scope=scope
                     ):
                         twins = response.payload.twins
                         twins_found_list.extend(twins)
