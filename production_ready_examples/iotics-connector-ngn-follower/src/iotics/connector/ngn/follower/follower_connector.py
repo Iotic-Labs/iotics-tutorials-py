@@ -1,17 +1,13 @@
-import csv
+import asyncio
 import json
 import logging
 import os
 from datetime import datetime
-from threading import Lock, Thread
 from typing import List
-
-from tqdm import tqdm
 
 import constants as constant
 import grpc
 from data_processor import DataProcessor
-from flask import Flask
 from identity import Identity
 from iotics.lib.grpc.helpers import create_property
 from iotics.lib.grpc.iotics_api import IoticsApi
@@ -27,21 +23,18 @@ log = logging.getLogger(__name__)
 
 
 class FollowerConnector:
-    def __init__(self, data_processor: DataProcessor, app: Flask):
+    def __init__(self, data_processor: DataProcessor):
         self._data_processor: DataProcessor = data_processor
         self._iotics_identity: Identity = None
         self._iotics_api: IoticsApi = None
-        self._refresh_token_lock: Lock = None
+        self._refresh_token_lock: asyncio.Lock = None
         self._twin_website_did: str = None
-        self._threads_list: List[Thread] = None
-        self._sensors_data: dict = None
-        self._app: Flask = app
+        self._threads_list: List[asyncio.Task] = []
+        self._sensors_data: dict = {}
 
-        self._initialise()
-
-    def _initialise(self):
+    async def initialise(self):
         log.debug("Initialising NGN Connector...")
-        endpoints = get_host_endpoints(host_url=os.getenv("NGN_HOST_URL"))
+        endpoints = await get_host_endpoints(host_url=os.getenv("NGN_HOST_URL"))
         self._iotics_identity = Identity(
             resolver_url=endpoints.get("resolver"),
             grpc_endpoint=endpoints.get("grpc"),
@@ -50,29 +43,19 @@ class FollowerConnector:
             agent_key_name=os.getenv("NGN_CONNECTOR_AGENT_KEY_NAME"),
             agent_seed=os.getenv("NGN_CONNECTOR_AGENT_SEED"),
         )
+        await self._iotics_identity.initialise()
         log.debug("IOTICS Identity initialised")
         self._iotics_api = IoticsApi(auth=self._iotics_identity)
         log.debug("IOTICS gRPC API initialised")
 
-        self._refresh_token_lock = Lock()
+        self._refresh_token_lock = asyncio.Lock()
 
         # Start auto-refreshing token Thread in the background
-        Thread(
-            target=self._iotics_identity.auto_refresh_token,
-            args=[self._refresh_token_lock, self._iotics_api],
-            name="auto_refresh_token",
-            daemon=True,
-        ).start()
-
-        # Start Flask App Thread in the background
-        th = Thread(target=self._initialise_flask, name="flask")
-        th.start()
-        self._threads_list = [th]
-
-        self._initialise_sensors_mapping()
-
-    def _initialise_flask(self):
-        self._app.run(host="0.0.0.0", port=5000)
+        auto_refresh_token_task = asyncio.create_task(
+            self._iotics_identity.auto_refresh_token(
+                self._refresh_token_lock, self._iotics_api
+            )
+        )
 
     def _parse_sensor_description(self, sensor_description: str):
         description_list = sensor_description.split("_")
@@ -127,18 +110,7 @@ class FollowerConnector:
 
         return sensor_dict
 
-    def _initialise_sensors_mapping(self):
-        self._sensors_data: dict = {}
-        with open("./sensors/sensors_mapping.csv", "r") as csv_file:
-            csv_reader = csv.DictReader(csv_file)
-            for row in csv_reader:
-                sensor_key = row["sensor_key"]
-                sensor_description = row["sensor_description"]
-                sensor_dict = self._parse_sensor_description(sensor_description)
-
-                self._sensors_data.update({sensor_key: sensor_dict})
-
-    def _setup_twin_structure(self) -> TwinStructure:
+    async def _setup_twin_structure(self) -> TwinStructure:
         """Define the Twin structure in terms of Twin's metadata.
 
         Returns:
@@ -171,7 +143,7 @@ class FollowerConnector:
 
         return twin_label
 
-    def _create_twin(self, twin_structure: TwinStructure):
+    async def _create_twin(self, twin_structure: TwinStructure):
         """Create the Twin Follower given a Twin Structure.
 
         Args:
@@ -181,14 +153,14 @@ class FollowerConnector:
         log.info("Creating Twin Website...")
 
         twin_website_identity = (
-            self._iotics_identity.create_twin_with_control_delegation(
+            await self._iotics_identity.create_twin_with_control_delegation(
                 twin_key_name="TwinWebsite"
             )
         )
         self._twin_website_did = twin_website_identity.did
         log.debug("Generated new Twin DID: %s", self._twin_website_did)
 
-        retry_on_exception(
+        await retry_on_exception(
             self._iotics_api.upsert_twin,
             "upsert_twin",
             self._refresh_token_lock,
@@ -198,7 +170,7 @@ class FollowerConnector:
 
         log.info("Created Twin Follower with DID: %s", self._twin_website_did)
 
-    def _search_sensor_twins(self):
+    async def _search_sensor_twins(self):
         """Search for the Sensor Twins.
 
         Returns:
@@ -216,19 +188,20 @@ class FollowerConnector:
             response_type="FULL",
         )
 
-        twins_found_list = search_twins(
-            search_criteria, self._refresh_token_lock, self._iotics_api, True, 30
+        twins_found_list = await search_twins(
+            search_criteria, self._refresh_token_lock, self._iotics_api, True, 3
         )
 
         log.info("Found %d Twins based on the search criteria", len(twins_found_list))
 
         return twins_found_list
 
-    def _decode_data(self, last_shared_data_payload):
+    @staticmethod
+    def _decode_data(last_shared_data_payload):
         try:
             received_data: dict = json.loads(last_shared_data_payload.feedData.data)
         except json.decoder.JSONDecodeError:
-            log.debug("Can't decode data ")
+            # log.debug("Can't decode data")
             return None, None
 
         occurred_at_unix_time = last_shared_data_payload.feedData.occurredAt.seconds
@@ -236,10 +209,10 @@ class FollowerConnector:
 
         return received_data, occurred_at_timestamp
 
-    def _get_feed_data(
+    async def _get_feed_data(
         self, publisher_twin_did: str, publisher_feed_id: str, sensor_key: str
     ):
-        log.debug(
+        log.info(
             "Getting Feed data from Twin %s, Feed %s...",
             publisher_twin_did,
             publisher_feed_id,
@@ -249,7 +222,7 @@ class FollowerConnector:
 
         while True:
             log.debug("Generating a new feed_listener...")
-            feed_listener = retry_on_exception(
+            feed_listener = await retry_on_exception(
                 self._iotics_api.fetch_interests,
                 "fetch_interests",
                 self._refresh_token_lock,
@@ -289,7 +262,7 @@ class FollowerConnector:
                         }
                     )
             except grpc.RpcError as grpc_ex:
-                if not expected_grpc_exception(
+                if not await expected_grpc_exception(
                     exception=grpc_ex, operation="feed_listener"
                 ):
                     unexpected_exception_counter += 1
@@ -302,7 +275,7 @@ class FollowerConnector:
 
         log.info("Exiting thread...")
 
-    def _get_sensor_key(self, sensor_info):
+    async def _get_sensor_key(self, sensor_info):
         sensor_properties = sensor_info.properties
         sensor_key = None
 
@@ -313,10 +286,10 @@ class FollowerConnector:
 
         return sensor_key
 
-    def _get_last_shared_value(
+    async def _get_last_shared_value(
         self, publisher_twin_did: str, publisher_feed_id: str, sensor_key: str
     ):
-        last_shared_data = retry_on_exception(
+        last_shared_data = await retry_on_exception(
             self._iotics_api.fetch_last_stored,
             "fetch_last_stored",
             self._refresh_token_lock,
@@ -333,7 +306,12 @@ class FollowerConnector:
 
         sensor: dict = self._sensors_data.get(sensor_key, {})
         if not sensor or not sensor.get("house_number"):
-            twin_description = self._iotics_api.describe_twin(publisher_twin_did)
+            twin_description = await retry_on_exception(
+                self._iotics_api.describe_twin,
+                "describe_twin",
+                self._refresh_token_lock,
+                twin_did=publisher_twin_did,
+            )
             twin_properties = twin_description.payload.result.properties
             twin_label = self._get_twin_label(twin_properties)
             sensor_dict = self._parse_sensor_description(twin_label)
@@ -352,7 +330,7 @@ class FollowerConnector:
                 {"last_shared_value": "", "last_shared_date": ""}
             )
 
-    def _follow_sensor_twins(self, sensor_twins_list):
+    async def _follow_sensor_twins(self, sensor_twins_list):
         """Create and start a new Thread for each Feed of each Twin included
         in the Sensor Twins List. Then add the thread to the Thread list.
 
@@ -360,26 +338,24 @@ class FollowerConnector:
             sensor_twins_list: list of Twins found by the Search operation.
         """
 
-        for sensor_twin in tqdm(sensor_twins_list):
+        for sensor_twin in sensor_twins_list[:100]:
             sensor_twin_id = sensor_twin.twinId.id
             sensor_twin_feeds = sensor_twin.feeds
-            sensor_key = self._get_sensor_key(sensor_twin)
+            sensor_key = await self._get_sensor_key(sensor_twin)
 
             for twin_feed in sensor_twin_feeds:
                 feed_id = twin_feed.feedId.id
 
-                self._get_last_shared_value(sensor_twin_id, feed_id, sensor_key)
+                await self._get_last_shared_value(sensor_twin_id, feed_id, sensor_key)
 
                 thread_name = f"{sensor_twin_id}_{feed_id}"
 
-                feed_thread = Thread(
-                    target=self._get_feed_data,
-                    args=[sensor_twin_id, feed_id, sensor_key],
-                    name=thread_name,
+                asyncio.create_task(
+                    self._get_feed_data(sensor_twin_id, feed_id, sensor_key)
                 )
-                log.debug("Starting new Thread %s...", thread_name)
-                feed_thread.start()
-                self._threads_list.append(feed_thread)
+
+                log.debug("Starting new Coroutine %s...", thread_name)
+                # self._threads_list.append(get_feed_data_task)
 
     def get_sensors_info(self):
         for sensor in self._sensors_data:
@@ -400,11 +376,10 @@ class FollowerConnector:
 
         return self._sensors_data
 
-    def start(self):
-        twin_structure = self._setup_twin_structure()
-        self._create_twin(twin_structure)
-        sensor_twins_list = self._search_sensor_twins()
-        self._follow_sensor_twins(sensor_twins_list)
+    async def start(self):
+        twin_structure = await self._setup_twin_structure()
+        await self._create_twin(twin_structure)
+        sensor_twins_list = await self._search_sensor_twins()
+        await self._follow_sensor_twins(sensor_twins_list)
 
-        for thread in self._threads_list:
-            thread.join()
+        # await asyncio.gather(*self._threads_list)

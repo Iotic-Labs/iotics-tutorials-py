@@ -1,9 +1,11 @@
+import asyncio
 import logging
 import sys
 from threading import Lock
 from time import sleep
 from uuid import uuid4
 
+import aiohttp
 import constants as constant
 import grpc
 import requests
@@ -20,7 +22,7 @@ def check_global_var(var, var_name: str):
         sys.exit(1)
 
 
-def get_host_endpoints(host_url: str) -> dict:
+async def get_host_endpoints(host_url: str) -> dict:
     """Return the endpoint info to connect to the Host.
 
     Args:
@@ -35,18 +37,29 @@ def get_host_endpoints(host_url: str) -> dict:
         sys.exit(1)
 
     index_json: str = host_url + constant.INDEX_JSON_PATH
-    req_resp: dict = {}
 
     try:
-        req_resp = requests.get(index_json, timeout=3).json()
-    except requests.exceptions.ConnectionError:
-        log.error("Can't connect to %s. Check HOST_URL is spelt correctly", index_json)
+        async with aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=3)
+        ) as session:
+            async with session.get(index_json) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    log.error(
+                        "Can't connect to %s. Check HOST_URL is spelt correctly",
+                        index_json,
+                    )
+                    sys.exit(1)
+    except asyncio.TimeoutError:
+        log.error(f"Timeout connecting to {index_json}")
+        sys.exit(1)
+    except aiohttp.ClientError as e:
+        log.error(f"Error connecting to {index_json}: {e}")
         sys.exit(1)
 
-    return req_resp
 
-
-def search_twins(
+async def search_twins(
     search_criteria: search_pb2.SearchRequest.Payload,
     refresh_token_lock: Lock,
     iotics_api: IoticsApi,
@@ -73,7 +86,7 @@ def search_twins(
     while True:
         for attempt in range(constant.RETRYING_ATTEMPTS):
             try:
-                with refresh_token_lock:
+                async with refresh_token_lock:
                     for response in iotics_api.search_iter(
                         client_app_id=uuid4().hex,
                         payload=search_criteria,
@@ -82,7 +95,7 @@ def search_twins(
                         twins = response.payload.twins
                         twins_found_list.extend(twins)
             except grpc.RpcError as ex:
-                if not expected_grpc_exception(exception=ex, operation="search_twins"):
+                if not await expected_grpc_exception(exception=ex, operation="search_twins"):
                     break
                 log.debug("Attempt #%d", attempt + 1)
             else:
@@ -101,7 +114,7 @@ def search_twins(
     return twins_found_list
 
 
-def expected_grpc_exception(exception, operation: str) -> bool:
+async def expected_grpc_exception(exception, operation: str) -> bool:
     """Check if the exception is what we know we can receive i.e.
     - a stream timeout which occurs if a feed has been idle for a long time (a day).
     - or auth token needs regenerating
@@ -122,18 +135,18 @@ def expected_grpc_exception(exception, operation: str) -> bool:
         grpc.StatusCode.UNAVAILABLE,
         grpc.StatusCode.UNAUTHENTICATED,
         grpc.StatusCode.CANCELLED,
+        grpc.StatusCode.DEADLINE_EXCEEDED,
     ]:
-        log.debug("Expected exception raised in '%s': %s", operation, exception)
         expected_exception = True
     else:
         log.warning("Unexpected exception raised in '%s': %s", operation, exception)
 
-    sleep(5)
+    await asyncio.sleep(5)
 
     return expected_exception
 
 
-def retry_on_exception(
+async def retry_on_exception(
     grpc_operation, function_name: str, refresh_token_lock: Lock, *args, **kwargs
 ):
     """Wrapper to safely retry IOTICS operations in case of failure.
@@ -153,16 +166,16 @@ def retry_on_exception(
 
     for attempt in range(constant.RETRYING_ATTEMPTS):
         try:
-            with refresh_token_lock:
+            async with refresh_token_lock:
                 operation_result = grpc_operation(*args, **kwargs)
         except grpc.RpcError as ex:
-            if not expected_grpc_exception(exception=ex, operation=function_name):
+            if not await expected_grpc_exception(exception=ex, operation=function_name):
                 log.warning("Retry attempt #%d", attempt + 1)
         else:
             operation_successful = True
             break
 
-        sleep(retry_sleep_time)
+        await asyncio.sleep(retry_sleep_time)
         retry_sleep_time += 2
 
     if not operation_successful:

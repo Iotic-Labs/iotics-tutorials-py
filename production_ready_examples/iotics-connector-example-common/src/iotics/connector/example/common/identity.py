@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timedelta
 from threading import Lock
 from time import sleep, time
-
+import asyncio
 import constants as constant
 from iotics.lib.grpc.auth import AuthInterface
 from iotics.lib.grpc.iotics_api import IoticsApi
@@ -41,9 +41,7 @@ class Identity(AuthInterface):
         self._token: str = None
         self._token_last_updated: float = None
 
-        self._initialise()
-
-    def _initialise(self):
+    async def initialise(self):
         """Check all the env variables have been set properly.
         Then create/retrieve a User and an Agent Identity with auth delegation,
         followed by the generation of a new IOTICS token.
@@ -112,7 +110,7 @@ class Identity(AuthInterface):
             datetime.now() + timedelta(seconds=self._token_duration),
         )
 
-    def create_twin_with_control_delegation(
+    async def create_twin_with_control_delegation(
         self, twin_key_name: str, twin_seed: str = None
     ) -> RegisteredIdentity:
         """Wrapper of the 'create_twin_with_control_delegation' function
@@ -146,11 +144,13 @@ class Identity(AuthInterface):
 
         return twin_identity
 
-    def auto_refresh_token(self, refresh_token_lock: Lock, iotics_api: IoticsApi):
+    async def auto_refresh_token(
+        self, refresh_token_lock: asyncio.Lock, iotics_api: IoticsApi
+    ):
         """Automatically refresh then IOTICS token before it expires.
 
         Args:
-            refresh_token_lock (Lock): used to prevent race conditions.
+            refresh_token_lock (asyncio.Lock): used to prevent race conditions.
             iotics_api (IoticsApi): the instance of IOTICS gRPC API
                 used to execute Twins operations.
         """
@@ -159,8 +159,8 @@ class Identity(AuthInterface):
 
         while True:
             time_to_refresh: int = token_period - (time() - self._token_last_updated)
-            sleep(time_to_refresh)
-            with refresh_token_lock:
+            await asyncio.sleep(time_to_refresh)
+            async with refresh_token_lock:
                 self._refresh_token()
                 iotics_api.update_channel()
 

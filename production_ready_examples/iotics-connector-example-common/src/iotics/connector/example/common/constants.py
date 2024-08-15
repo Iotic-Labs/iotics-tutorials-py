@@ -61,7 +61,7 @@ MIN_VALUE = "https://schema.org/minValue"
 DB_URL = "postgresql://postgres:iotics@postgres:5432/iotics_tutorials"
 
 # Logging Configurations
-LOGGING_LEVEL = "INFO"
+LOGGING_LEVEL = "DEBUG"
 LOGGING_CONFIGURATION = {
     "version": 1,
     "disable_existing_loggers": False,
