@@ -110,7 +110,7 @@ class Identity(AuthInterface):
             datetime.now() + timedelta(seconds=self._token_duration),
         )
 
-    async def create_twin_with_control_delegation(
+    def create_twin_with_control_delegation(
         self, twin_key_name: str, twin_seed: str = None
     ) -> RegisteredIdentity:
         """Wrapper of the 'create_twin_with_control_delegation' function

@@ -1,14 +1,11 @@
 import asyncio
 import logging
 import sys
-from threading import Lock
-from time import sleep
 from uuid import uuid4
 
 import aiohttp
 import constants as constant
 import grpc
-import requests
 from iotics.api import search_pb2
 from iotics.lib.grpc.iotics_api import IoticsApi
 
@@ -61,7 +58,7 @@ async def get_host_endpoints(host_url: str) -> dict:
 
 async def search_twins(
     search_criteria: search_pb2.SearchRequest.Payload,
-    refresh_token_lock: Lock,
+    refresh_token_lock: asyncio.Lock,
     iotics_api: IoticsApi,
     keep_searching: bool = True,
     timeout: int = 3,
@@ -95,7 +92,9 @@ async def search_twins(
                         twins = response.payload.twins
                         twins_found_list.extend(twins)
             except grpc.RpcError as ex:
-                if not await expected_grpc_exception(exception=ex, operation="search_twins"):
+                if not await expected_grpc_exception(
+                    exception=ex, operation="search_twins"
+                ):
                     break
                 log.debug("Attempt #%d", attempt + 1)
             else:
@@ -107,7 +106,7 @@ async def search_twins(
                 search_criteria,
                 constant.RETRY_SLEEP_TIME,
             )
-            sleep(constant.RETRY_SLEEP_TIME)
+            await asyncio.sleep(constant.RETRY_SLEEP_TIME)
         else:
             break
 
@@ -147,7 +146,11 @@ async def expected_grpc_exception(exception, operation: str) -> bool:
 
 
 async def retry_on_exception(
-    grpc_operation, function_name: str, refresh_token_lock: Lock, *args, **kwargs
+    grpc_operation,
+    function_name: str,
+    refresh_token_lock: asyncio.Lock,
+    *args,
+    **kwargs,
 ):
     """Wrapper to safely retry IOTICS operations in case of failure.
 

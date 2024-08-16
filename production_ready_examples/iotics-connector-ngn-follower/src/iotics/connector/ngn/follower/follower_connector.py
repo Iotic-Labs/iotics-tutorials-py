@@ -153,7 +153,7 @@ class FollowerConnector:
         log.info("Creating Twin Website...")
 
         twin_website_identity = (
-            await self._iotics_identity.create_twin_with_control_delegation(
+            self._iotics_identity.create_twin_with_control_delegation(
                 twin_key_name="TwinWebsite"
             )
         )
@@ -201,7 +201,7 @@ class FollowerConnector:
         try:
             received_data: dict = json.loads(last_shared_data_payload.feedData.data)
         except json.decoder.JSONDecodeError:
-            # log.debug("Can't decode data")
+            log.debug("Can't decode data")
             return None, None
 
         occurred_at_unix_time = last_shared_data_payload.feedData.occurredAt.seconds
@@ -233,7 +233,8 @@ class FollowerConnector:
             )
 
             try:
-                for latest_feed_data in feed_listener:
+                while True:
+                    latest_feed_data = await asyncio.to_thread(next, feed_listener)
                     log.info(
                         "Received a new data sample from Twin %s Sensor Key %s",
                         publisher_twin_did,
@@ -338,7 +339,7 @@ class FollowerConnector:
             sensor_twins_list: list of Twins found by the Search operation.
         """
 
-        for sensor_twin in sensor_twins_list[:100]:
+        for sensor_twin in sensor_twins_list:
             sensor_twin_id = sensor_twin.twinId.id
             sensor_twin_feeds = sensor_twin.feeds
             sensor_key = await self._get_sensor_key(sensor_twin)
@@ -350,12 +351,13 @@ class FollowerConnector:
 
                 thread_name = f"{sensor_twin_id}_{feed_id}"
 
-                asyncio.create_task(
-                    self._get_feed_data(sensor_twin_id, feed_id, sensor_key)
+                get_feed_data_task = asyncio.create_task(
+                    coro=self._get_feed_data(sensor_twin_id, feed_id, sensor_key),
+                    name=thread_name,
                 )
 
                 log.debug("Starting new Coroutine %s...", thread_name)
-                # self._threads_list.append(get_feed_data_task)
+                self._threads_list.append(get_feed_data_task)
 
     def get_sensors_info(self):
         for sensor in self._sensors_data:
@@ -382,4 +384,4 @@ class FollowerConnector:
         sensor_twins_list = await self._search_sensor_twins()
         await self._follow_sensor_twins(sensor_twins_list)
 
-        # await asyncio.gather(*self._threads_list)
+        await asyncio.gather(*self._threads_list)
